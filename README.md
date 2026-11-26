@@ -15,6 +15,7 @@ npm run build
 skillhub scan --json
 skillhub doctor
 skillhub use demo --outcome success --agent me
+skillhub profile demo --json
 skillhub stats --json
 skillhub serve --port 4319            # http://127.0.0.1:4319
 ```
@@ -28,7 +29,11 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 | `status [--json]` | gh/glab CLI 登录状态小灯（多 host，逐个显示 🟢/🔴/🟡/⚪） |
 | `relations [--json]` | Skill ↔ GitHub/GitLab 仓库关系：git remote/frontmatter 匹配，按当前账户公开仓校准，分自有开源/自有私有/第三方/未关联 |
 | `stats` / `problems` | 次数、成功率、最近使用、问题清单，`--skill` 过滤 |
-| `serve` | 只读网页，含 CLI 状态灯 + 仓库关系；端点 `/api/scan` `/api/doctor` `/api/stats` `/api/status` `/api/relations` `/api/refresh` |
+| `frequency [days]` | 近 N 天使用频次与调用 agent 数，默认 7 天；`--skill` 过滤 |
+| `agents` | 按 skill + agent 聚合使用次数；`--skill` 过滤 |
+| `profile [<skill>]` | 每个 Skill 的合并档案：版本、生命周期、总次数、7/30 天频次、agent 分布 |
+| `lifecycle <skill> <status>` | 设置生命周期 `draft\|active\|deprecated\|archived`，`--note` 写原因 |
+| `serve` | 只读网页，含 CLI 状态灯、仓库关系、Skill 档案；端点 `/api/scan` `/api/doctor` `/api/stats` `/api/status` `/api/relations` `/api/profiles` `/api/refresh` |
 
 扫描默认覆盖源仓 + 全运行时目录（`~/.claude`、`~/.codex`、`~/.gemini`、`~/.agents`、`~/.dsh`、`~/.cursor`、`~/.config/opencode`），软链会跟随；同名按根顺序去重，独立仓优先。
 `SKILLHUB_DATA_DIR` 可改 SQLite 位置；`--root` 可改扫描根（可重复）。
@@ -40,4 +45,4 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
 
 ## 状态
-0.3.0：scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/只读网页全部可用，`npm test` 7/7。版本/diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。
+0.4.0：每个 Skill 都有独立版本、生命周期（draft/active/deprecated/archived）、7/30 天频次、按 agent 聚合次数与合并档案；scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/只读网页继续可用，`npm test` 9/9。版本 diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。

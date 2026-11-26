@@ -3,7 +3,8 @@ import { createServer } from 'node:http';
 import { doctor, scanSkills } from './scan.js';
 import { checkCliStatus } from './cli-status.js';
 import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
-import { UsageStore } from './usage.js';
+import { UsageStore, LIFECYCLE_STATUSES, type LifecycleStatus } from './usage.js';
+import { buildProfiles } from './profile.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
 
@@ -15,6 +16,10 @@ Usage:
   skillhub use <skill> --outcome success|partial|failed [--agent <id>] [--session <id>] [--problem <text>]
   skillhub stats [--skill <name>] [--json]
   skillhub problems [--skill <name>] [--json]
+  skillhub frequency [days] [--skill <name>] [--json]   # 近 N 天频次（默认 7）
+  skillhub agents [--skill <name>] [--json]             # 按 agent 聚合使用次数
+  skillhub profile [<skill>] [--json]                   # 每个 Skill 的版本+生命周期+使用档案
+  skillhub lifecycle <skill> <status> [--note <text>]   # draft|active|deprecated|archived
   skillhub status [--json]          # gh/glab CLI 登录状态小灯
   skillhub relations [--json]       # Skill ↔ GitHub/GitLab 仓库关系（自有/第三方/未关联）
   skillhub serve [--root <dir>] ... [--port 4319]
@@ -29,6 +34,7 @@ Options:
   --agent <id>     caller agent id
   --session <id>   caller session id
   --skill <name>   filter stats/problems to one skill
+  --note <text>    lifecycle reason
 
 Notes:
   skillhub is the source of truth for skill management. CS is a thin consumer.
@@ -47,7 +53,7 @@ interface Opts {
 function parseArgs(argv: string[]): Opts {
   const [command = 'help', ...rest] = argv;
   const opts: Opts = { command, positionals: [], roots: [], json: false, port: 4319, flags: {} };
-  const valueFlags = new Set(['--root', '--port', '--outcome', '--problem', '--agent', '--session', '--skill']);
+  const valueFlags = new Set(['--root', '--port', '--outcome', '--problem', '--agent', '--session', '--skill', '--note']);
   for (let i = 0; i < rest.length; i += 1) {
     const arg = rest[i];
     if (valueFlags.has(arg)) {
@@ -156,6 +162,49 @@ async function main(): Promise<void> {
     } finally {
       store.close();
     }
+    return;
+  }
+  if (opts.command === 'frequency') {
+    const days = Number(opts.positionals[0] || 7);
+    const store = new UsageStore();
+    try {
+      const rows = store.frequency(days, opts.flags.skill);
+      process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill}: ${r.uses} uses / ${days}d (${r.agents} agents)`).join('\n') || `no usage in last ${days}d`}\n`);
+    } finally { store.close(); }
+    return;
+  }
+  if (opts.command === 'agents') {
+    const store = new UsageStore();
+    try {
+      const rows = store.agents(opts.flags.skill);
+      process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill} ← ${r.agent}: ${r.uses}`).join('\n') || 'no agent usage recorded'}\n`);
+    } finally { store.close(); }
+    return;
+  }
+  if (opts.command === 'lifecycle') {
+    const [skill, status] = opts.positionals;
+    if (!skill || !status) throw new Error('usage: skillhub lifecycle <skill> <status> [--note <text>]');
+    if (!LIFECYCLE_STATUSES.includes(status as LifecycleStatus)) throw new Error(`bad status: ${status} (expected ${LIFECYCLE_STATUSES.join('|')})`);
+    const store = new UsageStore();
+    try {
+      const row = store.setLifecycle(skill, status as LifecycleStatus, opts.flags.note ?? '');
+      process.stdout.write(`${row.skill}: ${row.status}${row.note ? ` (${row.note})` : ''}\n`);
+    } finally { store.close(); }
+    return;
+  }
+  if (opts.command === 'profile') {
+    const result = await loadResult(opts.roots);
+    const store = new UsageStore();
+    try {
+      let profiles = buildProfiles(result.skills, store);
+      if (opts.flags.skill) profiles = profiles.filter(p => p.name === opts.flags.skill || p.name.includes(opts.flags.skill));
+      if (opts.positionals[0]) profiles = profiles.filter(p => p.name === opts.positionals[0] || p.name.includes(opts.positionals[0]));
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify(profiles, null, 2)}\n`);
+      } else {
+        process.stdout.write(`${profiles.map(p => `${p.name}@${p.version ?? '?'} [${p.lifecycle}] uses=${p.total_uses} 7d=${p.uses_7d} 30d=${p.uses_30d} agents=${p.unique_agents}`).join('\n')}\n`);
+      }
+    } finally { store.close(); }
     return;
   }
   if (opts.command === 'relations') {

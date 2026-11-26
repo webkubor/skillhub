@@ -20,6 +20,12 @@
       "should_trigger": true
     },
     {
+      "id": "lifecycle-profile",
+      "prompt": "我要看每个 Skill 的版本、生命周期、使用次数、近 7 天频次和调用它的 agent",
+      "expected_output": "skillhub profile --json（可加 --skill），必要时用 skillhub frequency / agents / lifecycle；遥测只写本地 SQLite",
+      "should_trigger": true
+    },
+    {
       "id": "unrelated",
       "prompt": "帮我改一下这个页面的按钮颜色",
       "expected_output": "不触发 SkillHub 技能",
