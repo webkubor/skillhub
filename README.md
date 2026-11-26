@@ -48,4 +48,4 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
 
 ## 状态
-0.5.0：每个 Skill 都有独立版本、生命周期（draft/active/deprecated/archived）、本地开源/闭源口径、7/30 天频次、按 agent 聚合次数与合并档案；scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/本地网页继续可用，`npm test` 10/10。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或支付宝商品配置。版本 diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。
+0.5.1：每个 Skill 都有独立版本、生命周期（draft/active/deprecated/archived）、本地开源/闭源口径、7/30 天频次、按 agent 聚合次数与合并档案；scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/本地网页继续可用，`npm test` 10/10。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或支付宝商品配置。CS 不参与管理，也不作为迁移源或路线图依据。

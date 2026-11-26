@@ -2,7 +2,7 @@
 
 ## 原则
 
-**CS 不做 Skills 管理平台。** 独立仓 `skillhub` 是 Skills 能力的唯一真源；CS 只保留一个薄插件，做到「能读能用」。
+**CS 不直接参与 Skills 管理。** 独立仓 `skillhub` 是 Skills 能力的唯一真源和唯一管理入口。CS 最多提供一个薄入口，让人/Agent 能读能用；CS 旧 `cs skill` 管理命令不是迁移源、不是兼容目标、不在本仓路线图内。
 
 ## 边界
 
@@ -11,7 +11,7 @@
 | skillhub 独立仓 | scan / doctor / 遥测 SQLite / stats / 只读网页 / 后续版本与打包能力 |
 | CS（本仓 `integrations/cs/`） | 一个薄 Skill 入口，调用已安装的 `skillhub` CLI |
 
-CS **不**：复制 skillhub 规则正文、持有 Skill 真源副本、承接管理命令栈、写第二份遥测。
+CS **不**：复制 skillhub 规则正文、持有 Skill 真源副本、承接任何管理命令栈、写第二份遥测、作为能力迁移源或兼容目标。
 
 ## 接入
 

@@ -6,7 +6,7 @@
 
 ## 背景
 
-最初方案把 SkillHub 建在 CS 的 `cs skill` 与 `cs-ui-web /#/skills` 之上，并沿用 CS 的遥测真源（`cs_private.skill_usage`）与写命令。这与 owner 定的分层相反：CS 应保持轻量，不承担 Skills 的管理复杂度。
+最初方案曾把 SkillHub 挂在 `cs skill` 与 `cs-ui-web /#/skills` 上。这个方向已作废：owner 明确要求 CS 系统不直接参与 Skills 管理，CS 也不作为本仓的迁移源或能力路线图依据。
 
 独立仓 `~/dev/agent-infra/skillhub` 已是 Skills 能力的**唯一真源**：scan/doctor/网页/遥测/统计都由它维护。CS 侧只保留一个薄插件，能读、能用，不复制管理逻辑、不做真源。
 
@@ -16,9 +16,9 @@
 |---|---|---|
 | Skill 索引 / 扫描 / 健康 | skillhub | `scan`、`doctor`，Git + Markdown 是源 |
 | 使用统计 / 遥测 | skillhub | 本地 SQLite（`node:sqlite`，零外部依赖），不写 CS Supabase |
-| 版本 / diff / 快照 / 打包 | skillhub | 后续迭代在独立仓实现；不委托 `cs skill` 作为真源 |
-| CLI + Web | skillhub | Node+TS 共享 `src/types.ts`；`node:http` 只读 API |
-| CS 系统 | 薄消费端 | 只留一个可读可用的插件 Skill，指向 skillhub；**不承载管理逻辑** |
+| 版本 / diff / 快照 / 打包 | skillhub | 由独立仓按自己的路线迭代；不从 `cs skill` 迁移，也不以 `cs skill` 为真源 |
+| CLI + Web | skillhub | Node+TS 共享 `src/types.ts`；`node:http` API；Web 默认只读，来源口径例外 |
+| CS 系统 | 不参与管理 | 最多保留一个薄入口；不承载任何 Skills 管理逻辑，不能读写成第二真源 |
 
 ### 明确不做
 
@@ -29,7 +29,7 @@
 ## 权衡
 
 - 获得：CS 保持轻量；Skills 能力在一个独立仓里迭代，发布节奏与 CS 解耦；遥测本地可读、零联网。
-- 代价：CS 侧已有 `cs skill` 命令与 `/#/skills` 看板成为历史资产，短期并存，需明确「只读消费」定位避免混淆；独立仓要自己补齐原本 CS 提供的版本/打包能力。
+- 代价：SkillHub 独立仓要自己定义并实现版本、diff、快照、打包等能力；与 CS 历史 `cs skill` 命令没有兼容承诺。
 
 ## 推翻条件
 
