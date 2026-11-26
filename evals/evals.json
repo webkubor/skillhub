@@ -1,0 +1,29 @@
+{
+  "skill_name": "skillhub",
+  "cases": [
+    {
+      "id": "inventory",
+      "prompt": "用 skillhub 盘点本机所有技能，给出分类和来源分布",
+      "expected_output": "跑 skillhub scan --json，输出清单、分类、来源，不修改任何 SKILL.md",
+      "should_trigger": true
+    },
+    {
+      "id": "doctor",
+      "prompt": "检查本机技能有没有格式损坏或缺版本",
+      "expected_output": "跑 skillhub doctor，列出 broken 与 no-version，退出码反映健康状态",
+      "should_trigger": true
+    },
+    {
+      "id": "telemetry",
+      "prompt": "记录这次 skillhub 使用成功，并看看成功率统计",
+      "expected_output": "skillhub use <skill> --outcome success，再 skillhub stats；遥测只写本地 SQLite",
+      "should_trigger": true
+    },
+    {
+      "id": "unrelated",
+      "prompt": "帮我改一下这个页面的按钮颜色",
+      "expected_output": "不触发 SkillHub 技能",
+      "should_trigger": false
+    }
+  ]
+}

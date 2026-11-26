@@ -61,10 +61,10 @@ function parseArgs(argv: string[]): Opts {
 }
 
 const DEFAULT_ROOTS = [
+  '~/dev/agent-infra',               // 本仓薄插件优先，盖掉 CS 仓里的旧厚入口
   '~/dev/cs/CortexOS/skills',
   '~/dev/agent-skills/writing-standard-skills/skills',
   '~/dev/agent-skills',
-  '~/dev/agent-infra',
   '~/dev/visual/ui-craft/skills',
   '~/.agents/skills',
 ];
