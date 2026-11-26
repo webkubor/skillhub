@@ -1,6 +1,6 @@
 {
   "name": "skillhub",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Local-first Skill hub: inventory, stats, distribution, iteration gates, and CLI/web views for AI agent skills",
   "type": "module",
   "bin": {

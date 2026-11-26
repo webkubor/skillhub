@@ -1,23 +1,39 @@
 # skillhub
 
-本机 Skill 的独立仓库：扫描、统计、分发、迭代门禁与网页视图。CS / cs-ui-web 只作为插件消费本仓库的能力，不把 Skill 真源搬进 CS。
+本机 Skills 的独立仓库：扫描、健康、遥测、统计与只读网页。**Skills 能力全部下放这里维护，CS 系统只做薄消费端（能读能用），不承担管理逻辑。**
 
 ## 定位
-- 真源仍是各源仓的 `SKILL.md`；skillhub 是索引与门禁层，不持有 Skill 正文副本。
-- CLI 是第一入口，网页只读 + dry-run；写操作委托现有 `cs skill`。
-- 公司技能（`scope: company`）永不发布；第三方技能只登记来源、不替上游管版本。
+- 真源：Skill 正文在各源仓的 `SKILL.md`；skillhub 只做索引与遥测，不复制正文。
+- 遥测：本地 SQLite（`node:sqlite`，零外部依赖），不写任何外部系统的第二份真源。
+- CS：`integrations/cs/` 里只有一个薄 Skill 入口；规则正文与版本以本仓为准。
 
 ## 快速开始
 ```bash
 npm install
 npm run build
-node dist/cli.js scan --root ~/dev/cs/CortexOS/skills --json
-node dist/cli.js doctor --root ~/dev/cs/CortexOS/skills
-node dist/cli.js serve --root ~/dev/cs/CortexOS/skills --port 4319
+./install.sh                          # 装到 ~/.local/bin/skillhub
+skillhub scan --json
+skillhub doctor
+skillhub use demo --outcome success --agent me
+skillhub stats --json
+skillhub serve --port 4319            # http://127.0.0.1:4319
 ```
 
-## 插件接入
-CS 侧只放一个薄 Skill：`skills/devops/skillhub-ops/SKILL.md`，指向本仓库 CLI；不复制规则正文、不另建数据库。
+## 命令
+| 命令 | 用途 |
+|---|---|
+| `scan` | Skill 清单/分类/来源，`--json` |
+| `doctor` | 坏 frontmatter + 自管无版本，退出码 1 表示有问题 |
+| `use <skill> --outcome ...` | 记一次使用（success/partial/failed） |
+| `stats` / `problems` | 次数、成功率、最近使用、问题清单，`--skill` 过滤 |
+| `serve` | 只读网页，端点 `/api/scan` `/api/doctor` `/api/stats` `/api/refresh` |
+
+`SKILLHUB_DATA_DIR` 可改 SQLite 位置；`--root` 可改扫描根（可重复）。
+
+## 文档
+- [ADR-001 技术决策](docs/adr-001-tech-stack.md)：为什么保持轻量栈、CS 为什么只做消费端。
+- [CS 集成契约](docs/cs-integration.md)：薄消费边界与接入方式。
+- [SKILL.md](SKILL.md)：给 Agent 的用法说明。
 
 ## 状态
-0.1.0：扫描、统计、doctor、只读网页。分发/打包/发布门禁继续委托 `cs skill pack` / `cs skill install`，外部发布不默认开启。
+0.2.0：scan/doctor/use/stats/problems/只读网页全部可用，`npm test` 5/5。版本/diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。

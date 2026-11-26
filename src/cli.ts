@@ -1,49 +1,76 @@
 #!/usr/bin/env node
-import { readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { resolve } from 'node:path';
 import { doctor, scanSkills } from './scan.js';
+import { UsageStore } from './usage.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
 
-const HELP = `skillhub — local Skill hub CLI
+const HELP = `skillhub — local Skill hub CLI (independent of CS)
 
 Usage:
   skillhub scan [--root <dir>] ... [--json]
   skillhub doctor [--root <dir>] ...
+  skillhub use <skill> --outcome success|partial|failed [--agent <id>] [--session <id>] [--problem <text>]
+  skillhub stats [--skill <name>] [--json]
+  skillhub problems [--skill <name>] [--json]
   skillhub serve [--root <dir>] ... [--port 4319]
   skillhub help
 
 Options:
-  --root <dir>   skill root (repeatable; default: ~/dev/cs/CortexOS/skills)
-  --json         JSON output for scan
-  --port <n>     web server port (default 4319)
+  --root <dir>     skill root (repeatable; default: installed roots, see scan --json scannedRoots)
+  --json           JSON output
+  --port <n>       web server port (default 4319)
+  --outcome <o>    use result: success | partial | failed (required for use)
+  --problem <t>    issue description (only for partial/failed)
+  --agent <id>     caller agent id
+  --session <id>   caller session id
+  --skill <name>   filter stats/problems to one skill
 
 Notes:
-  scan/doctor are read-only. Write operations stay in the CS skill CLI.
+  skillhub is the source of truth for skill management. CS is a thin consumer.
+  Telemetry lives in local SQLite (SKILLHUB_DATA_DIR to override), never in CS.
 `;
 
-function parseArgs(argv: string[]): { command: string; roots: string[]; json: boolean; port: number } {
-  const [command = 'help', ...rest] = argv;
-  const roots: string[] = [];
-  let json = false;
-  let port = 4319;
-  for (let i = 0; i < rest.length; i += 1) {
-    const arg = rest[i];
-    if (arg === '--root') {
-      roots.push(rest[++i] ?? '');
-    } else if (arg === '--json') {
-      json = true;
-    } else if (arg === '--port') {
-      port = Number(rest[++i] ?? 4319);
-    }
-  }
-  return { command, roots: roots.filter(Boolean), json, port };
+interface Opts {
+  command: string;
+  positionals: string[];
+  roots: string[];
+  json: boolean;
+  port: number;
+  flags: Record<string, string>;
 }
 
+function parseArgs(argv: string[]): Opts {
+  const [command = 'help', ...rest] = argv;
+  const opts: Opts = { command, positionals: [], roots: [], json: false, port: 4319, flags: {} };
+  const valueFlags = new Set(['--root', '--port', '--outcome', '--problem', '--agent', '--session', '--skill']);
+  for (let i = 0; i < rest.length; i += 1) {
+    const arg = rest[i];
+    if (valueFlags.has(arg)) {
+      const value = rest[++i] ?? '';
+      if (arg === '--root') opts.roots.push(value);
+      else if (arg === '--port') opts.port = Number(value || 4319);
+      else opts.flags[arg.slice(2)] = value;
+    } else if (arg === '--json') {
+      opts.json = true;
+    } else if (!arg.startsWith('-')) {
+      opts.positionals.push(arg);
+    }
+  }
+  return opts;
+}
+
+const DEFAULT_ROOTS = [
+  '~/dev/cs/CortexOS/skills',
+  '~/dev/agent-skills/writing-standard-skills/skills',
+  '~/dev/agent-skills',
+  '~/dev/agent-infra',
+  '~/dev/visual/ui-craft/skills',
+  '~/.agents/skills',
+];
+
 async function loadResult(roots: string[]): Promise<ScanResult> {
-  const useRoots = roots.length ? roots : ['~/dev/cs/CortexOS/skills'];
-  return scanSkills({ roots: useRoots });
+  return scanSkills({ roots: roots.length ? roots : DEFAULT_ROOTS });
 }
 
 function renderText(result: ScanResult): string {
@@ -53,17 +80,16 @@ function renderText(result: ScanResult): string {
     byCategory.set(s.category, (byCategory.get(s.category) ?? 0) + 1);
     origins.set(s.origin, (origins.get(s.origin) ?? 0) + 1);
   }
-  const lines = [
+  return [
     `skills: ${result.count}`,
     `broken: ${result.broken.length}`,
     `categories: ${[...byCategory.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
     `origins: ${[...origins.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
-  ];
-  return lines.join('\n');
+  ].join('\n');
 }
 
-async function serve(opts: ReturnType<typeof parseArgs>): Promise<void> {
-  const roots = opts.roots.length ? opts.roots : ['~/dev/cs/CortexOS/skills'];
+async function serve(opts: Opts): Promise<void> {
+  const roots = opts.roots.length ? opts.roots : DEFAULT_ROOTS;
   const handler = await createHandler(roots);
   const server = createServer(handler);
   server.listen(opts.port, '127.0.0.1', () => {
@@ -87,6 +113,39 @@ async function main(): Promise<void> {
     const report = doctor(result);
     process.stdout.write(`${report.ok ? 'ok' : 'problems'}\n${report.problems.map(p => `- ${p}`).join('\n')}\n`);
     process.exitCode = report.ok ? 0 : 1;
+    return;
+  }
+  if (opts.command === 'use') {
+    const skill = opts.positionals[0];
+    const outcome = opts.flags.outcome;
+    if (!skill || !outcome) throw new Error('usage: skillhub use <skill> --outcome success|partial|failed');
+    const store = new UsageStore();
+    try {
+      store.record({ skill, outcome: outcome as 'success' | 'partial' | 'failed', agent: opts.flags.agent, session: opts.flags.session, problem: opts.flags.problem });
+      process.stdout.write(`recorded: ${skill} ${outcome}\n`);
+    } finally {
+      store.close();
+    }
+    return;
+  }
+  if (opts.command === 'stats') {
+    const store = new UsageStore();
+    try {
+      const rows = store.stats(opts.flags.skill);
+      process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill}: ${r.uses} uses, ${(r.success_rate * 100).toFixed(1)}% success`).join('\n') || 'no usage recorded'}\n`);
+    } finally {
+      store.close();
+    }
+    return;
+  }
+  if (opts.command === 'problems') {
+    const store = new UsageStore();
+    try {
+      const rows = store.problems(opts.flags.skill);
+      process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill}: ${r.problem}`).join('\n') || 'no problems recorded'}\n`);
+    } finally {
+      store.close();
+    }
     return;
   }
   if (opts.command === 'serve') {
