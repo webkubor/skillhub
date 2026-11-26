@@ -2,6 +2,7 @@
 import { createServer } from 'node:http';
 import { doctor, scanSkills } from './scan.js';
 import { checkCliStatus } from './cli-status.js';
+import { buildRelations, currentGithubAccount } from './relations.js';
 import { UsageStore } from './usage.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
@@ -15,6 +16,7 @@ Usage:
   skillhub stats [--skill <name>] [--json]
   skillhub problems [--skill <name>] [--json]
   skillhub status [--json]          # gh/glab CLI 登录状态小灯
+  skillhub relations [--json]       # Skill ↔ GitHub/GitLab 仓库关系（自有/第三方/未关联）
   skillhub serve [--root <dir>] ... [--port 4319]
   skillhub help
 
@@ -153,6 +155,23 @@ async function main(): Promise<void> {
       process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill}: ${r.problem}`).join('\n') || 'no problems recorded'}\n`);
     } finally {
       store.close();
+    }
+    return;
+  }
+  if (opts.command === 'relations') {
+    const result = await loadResult(opts.roots);
+    const account = await currentGithubAccount();
+    const relations = await buildRelations(result.skills, account ?? '');
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify({ account, relations }, null, 2)}\n`);
+    } else {
+      const groups = { own: [], 'third-party': [], unlinked: [] } as Record<string, typeof relations>;
+      for (const r of relations) groups[r.relation].push(r);
+      process.stdout.write(`GitHub 账户: ${account ?? 'unknown'}\n自有开源 ${groups.own.length} · 第三方 ${groups['third-party'].length} · 未关联 ${groups.unlinked.length}\n`);
+      for (const [label, rows] of Object.entries(groups)) {
+        if (!rows.length) continue;
+        process.stdout.write(`\n[${label}]\n${rows.slice(0, 20).map(r => `  ${r.skill} → ${r.repo?.url ?? '—'} (${r.via ?? 'none'})`).join('\n')}\n`);
+      }
     }
     return;
   }
