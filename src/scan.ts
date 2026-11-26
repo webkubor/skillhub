@@ -1,4 +1,4 @@
-import { readdir, readFile } from 'node:fs/promises';
+import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
 import type { Frontmatter, ScanOptions, ScanResult, SkillRecord } from './types.js';
 
@@ -43,11 +43,22 @@ async function walk(root: string, extraIgnore: string[], out: string[]): Promise
     return;
   }
   for (const entry of entries) {
+    const full = join(root, entry.name);
     if (entry.isDirectory()) {
-      if (!isIgnoredDir(entry.name, extraIgnore)) await walk(join(root, entry.name), extraIgnore, out);
+      if (!isIgnoredDir(entry.name, extraIgnore)) await walk(full, extraIgnore, out);
       continue;
     }
-    if (entry.isFile() && entry.name === 'SKILL.md') out.push(join(root, entry.name));
+    if (entry.isSymbolicLink()) {
+      // 软链目录要跟随，但防止环：只对指向真实目录的链接递归一层
+      try {
+        const target = await realpath(full);
+        const st = await stat(target);
+        if (st.isDirectory() && !isIgnoredDir(entry.name, extraIgnore)) await walk(full, extraIgnore, out);
+        else if (st.isFile() && entry.name === 'SKILL.md') out.push(full);
+      } catch { /* 断链忽略 */ }
+      continue;
+    }
+    if (entry.isFile() && entry.name === 'SKILL.md') out.push(full);
   }
 }
 

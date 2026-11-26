@@ -1,6 +1,6 @@
 ---
 name: skillhub
-version: "0.2.0"
+version: "0.3.0"
 description: "本地 SkillHub 独立 CLI：扫描/健康/统计/遥测/只读网页，Skills 管理真源，CS 只做薄消费。触发条件：用户要盘点/统计本机 Skills、记录某次使用结果、查版本欠账与格式损坏、启动本地 SkillHub 网页。触发词：skillhub、技能中心、技能盘点、技能统计、技能 doctor、记录 skill 使用。"
 license: MIT
 author: webkubor
@@ -40,7 +40,8 @@ skillhub serve --port 4319
 - `doctor`：坏 frontmatter + 自管无版本；有问题退出码 1。
 - `use <skill> --outcome success|partial|failed [--agent] [--session] [--problem]`：记一次使用；success 不能带 problem。
 - `stats` / `problems`：按 skill 统计次数、成功率、最近使用与问题清单；`--skill` 过滤，`--json` 输出。
-- `serve`：只读本地网页（`127.0.0.1:4319`），含清单、doctor 和统计表，端点 `/api/scan`、`/api/doctor`、`/api/stats`、`/api/refresh`。
+- `status [--json]`：本机 gh/glab CLI 登录状态小灯，逐个 host 显示 🟢/🔴/🟡/⚪（glab 多 host 分别显示）。
+- `serve`：只读本地网页（`127.0.0.1:4319`），含清单、doctor、CLI 状态灯和统计表，端点 `/api/scan`、`/api/doctor`、`/api/stats`、`/api/status`、`/api/refresh`。
 
 ## 边界
 

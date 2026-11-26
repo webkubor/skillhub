@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { createServer } from 'node:http';
 import { doctor, scanSkills } from './scan.js';
+import { checkCliStatus } from './cli-status.js';
 import { UsageStore } from './usage.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
@@ -13,6 +14,7 @@ Usage:
   skillhub use <skill> --outcome success|partial|failed [--agent <id>] [--session <id>] [--problem <text>]
   skillhub stats [--skill <name>] [--json]
   skillhub problems [--skill <name>] [--json]
+  skillhub status [--json]          # gh/glab CLI 登录状态小灯
   skillhub serve [--root <dir>] ... [--port 4319]
   skillhub help
 
@@ -67,6 +69,12 @@ const DEFAULT_ROOTS = [
   '~/dev/agent-skills',
   '~/dev/visual/ui-craft/skills',
   '~/.agents/skills',
+  '~/.claude/skills',
+  '~/.codex/skills',
+  '~/.gemini/config/skills',
+  '~/.dsh/skills',
+  '~/.cursor/skills',
+  '~/.config/opencode/skills',
 ];
 
 async function loadResult(roots: string[]): Promise<ScanResult> {
@@ -145,6 +153,15 @@ async function main(): Promise<void> {
       process.stdout.write(opts.json ? `${JSON.stringify(rows, null, 2)}\n` : `${rows.map(r => `${r.skill}: ${r.problem}`).join('\n') || 'no problems recorded'}\n`);
     } finally {
       store.close();
+    }
+    return;
+  }
+  if (opts.command === 'status') {
+    const status = checkCliStatus();
+    if (opts.json) {
+      process.stdout.write(`${JSON.stringify(status, null, 2)}\n`);
+    } else {
+      process.stdout.write(`${status.map(c => `${c.light} ${c.cli}: ${c.hosts.map(h => `${h.light} ${h.host}${h.user ? ` (${h.user})` : ''}`).join(', ') || c.detail}`).join('\n')}\n`);
     }
     return;
   }
