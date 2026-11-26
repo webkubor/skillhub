@@ -3,7 +3,7 @@ import { createServer } from 'node:http';
 import { doctor, scanSkills } from './scan.js';
 import { checkCliStatus } from './cli-status.js';
 import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
-import { UsageStore, LIFECYCLE_STATUSES, type LifecycleStatus } from './usage.js';
+import { UsageStore, LIFECYCLE_STATUSES, VISIBILITY_STATUSES, type LifecycleStatus, type VisibilityStatus } from './usage.js';
 import { buildProfiles } from './profile.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
@@ -20,6 +20,7 @@ Usage:
   skillhub agents [--skill <name>] [--json]             # 按 agent 聚合使用次数
   skillhub profile [<skill>] [--json]                   # 每个 Skill 的版本+生命周期+使用档案
   skillhub lifecycle <skill> <status> [--note <text>]   # draft|active|deprecated|archived
+  skillhub visibility <skill> open|closed [--note <text>] # 本地开源/闭源口径，不改远端仓库
   skillhub status [--json]          # gh/glab CLI 登录状态小灯
   skillhub relations [--json]       # Skill ↔ GitHub/GitLab 仓库关系（自有/第三方/未关联）
   skillhub serve [--root <dir>] ... [--port 4319]
@@ -192,6 +193,17 @@ async function main(): Promise<void> {
     } finally { store.close(); }
     return;
   }
+  if (opts.command === 'visibility') {
+    const [skill, status] = opts.positionals;
+    if (!skill || !status) throw new Error('usage: skillhub visibility <skill> open|closed [--note <text>]');
+    if (!VISIBILITY_STATUSES.includes(status as VisibilityStatus)) throw new Error(`bad status: ${status} (expected ${VISIBILITY_STATUSES.join('|')})`);
+    const store = new UsageStore();
+    try {
+      const row = store.setVisibility(skill, status as VisibilityStatus, opts.flags.note ?? '');
+      process.stdout.write(`${row.skill}: ${row.status}${row.note ? ` (${row.note})` : ''}\n`);
+    } finally { store.close(); }
+    return;
+  }
   if (opts.command === 'profile') {
     const result = await loadResult(opts.roots);
     const store = new UsageStore();
@@ -202,7 +214,7 @@ async function main(): Promise<void> {
       if (opts.json) {
         process.stdout.write(`${JSON.stringify(profiles, null, 2)}\n`);
       } else {
-        process.stdout.write(`${profiles.map(p => `${p.name}@${p.version ?? '?'} [${p.lifecycle}] uses=${p.total_uses} 7d=${p.uses_7d} 30d=${p.uses_30d} agents=${p.unique_agents}`).join('\n')}\n`);
+        process.stdout.write(`${profiles.map(p => `${p.name}@${p.version ?? '?'} [${p.lifecycle}/${p.visibility}] uses=${p.total_uses} 7d=${p.uses_7d} 30d=${p.uses_30d} agents=${p.unique_agents}`).join('\n')}\n`);
       }
     } finally { store.close(); }
     return;

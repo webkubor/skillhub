@@ -16,6 +16,7 @@ skillhub scan --json
 skillhub doctor
 skillhub use demo --outcome success --agent me
 skillhub profile demo --json
+skillhub visibility demo closed --note "commercial build"
 skillhub stats --json
 skillhub serve --port 4319            # http://127.0.0.1:4319
 ```
@@ -33,7 +34,8 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 | `agents` | 按 skill + agent 聚合使用次数；`--skill` 过滤 |
 | `profile [<skill>]` | 每个 Skill 的合并档案：版本、生命周期、总次数、7/30 天频次、agent 分布 |
 | `lifecycle <skill> <status>` | 设置生命周期 `draft\|active\|deprecated\|archived`，`--note` 写原因 |
-| `serve` | 只读网页，含 CLI 状态灯、仓库关系、Skill 档案；端点 `/api/scan` `/api/doctor` `/api/stats` `/api/status` `/api/relations` `/api/profiles` `/api/refresh` |
+| `visibility <skill> open\|closed` | 设置本地开源/闭源口径，`--note` 写原因；不改 GitHub/LICENSE/支付宝配置 |
+| `serve` | 本地网页，含 CLI 状态灯、仓库关系、Skill 档案；档案表可切换开源/闭源，端点 `/api/scan` `/api/doctor` `/api/stats` `/api/status` `/api/relations` `/api/profiles` `/api/refresh` `POST /api/visibility` |
 
 扫描默认覆盖源仓 + 全运行时目录（`~/.claude`、`~/.codex`、`~/.gemini`、`~/.agents`、`~/.dsh`、`~/.cursor`、`~/.config/opencode`），软链会跟随；同名按根顺序去重，独立仓优先。
 `SKILLHUB_DATA_DIR` 可改 SQLite 位置；`--root` 可改扫描根（可重复）。
@@ -41,8 +43,9 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 ## 文档
 - [ADR-001 技术决策](docs/adr-001-tech-stack.md)：为什么保持轻量栈、CS 为什么只做消费端。
 - [CS 集成契约](docs/cs-integration.md)：薄消费边界与接入方式。
+- [SkillPay 合同审阅](docs/skillpay-contract-notes.md)：售卖自有 SKILL 的边界、开源/闭源切换的法律含义与上架清单。
 - [线上分发平台清单](docs/distribution-platforms.md)：腾讯云 SkillHub / 支付宝 SkillPay，仅登记未接入。
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
 
 ## 状态
-0.4.0：每个 Skill 都有独立版本、生命周期（draft/active/deprecated/archived）、7/30 天频次、按 agent 聚合次数与合并档案；scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/只读网页继续可用，`npm test` 9/9。版本 diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。
+0.5.0：每个 Skill 都有独立版本、生命周期（draft/active/deprecated/archived）、本地开源/闭源口径、7/30 天频次、按 agent 聚合次数与合并档案；scan/doctor/use/stats/problems/CLI 状态灯/仓库关系图/本地网页继续可用，`npm test` 10/10。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或支付宝商品配置。版本 diff/快照/打包在市场阶段前按需在本仓迭代，不回灌 CS。

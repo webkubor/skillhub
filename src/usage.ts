@@ -40,6 +40,16 @@ export interface LifecycleRow {
   updated_at: string;
 }
 
+export type VisibilityStatus = 'open' | 'closed';
+export const VISIBILITY_STATUSES: VisibilityStatus[] = ['open', 'closed'];
+
+export interface VisibilityRow {
+  skill: string;
+  status: VisibilityStatus;
+  note: string;
+  updated_at: string;
+}
+
 export interface AgentStatRow {
   skill: string;
   agent: string;
@@ -77,6 +87,12 @@ export class UsageStore {
       note TEXT NOT NULL DEFAULT '',
       updated_at TEXT NOT NULL
     )`);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS visibility (
+      skill TEXT PRIMARY KEY,
+      status TEXT NOT NULL CHECK (status IN ('open','closed')),
+      note TEXT NOT NULL DEFAULT '',
+      updated_at TEXT NOT NULL
+    )`);
   }
 
   /** 读某 skill 的生命周期状态；未登记默认为 active（存在即可用）。 */
@@ -100,6 +116,28 @@ export class UsageStore {
       ON CONFLICT(skill) DO UPDATE SET status=excluded.status, note=excluded.note, updated_at=excluded.updated_at`)
       .run(skill, status, note, new Date().toISOString());
     return this.lifecycle(skill)[0];
+  }
+
+  visibility(skill?: string): VisibilityRow[] {
+    if (skill) {
+      const row = this.db.prepare('SELECT skill, status, note, updated_at FROM visibility WHERE skill = ?').get(skill) as Record<string, unknown> | undefined;
+      return row ? [this.toVisibility(row)] : [];
+    }
+    const rows = this.db.prepare('SELECT skill, status, note, updated_at FROM visibility ORDER BY skill').all() as Array<Record<string, unknown>>;
+    return rows.map(r => this.toVisibility(r));
+  }
+
+  private toVisibility(r: Record<string, unknown>): VisibilityRow {
+    return { skill: String(r.skill), status: String(r.status) as VisibilityStatus, note: String(r.note ?? ''), updated_at: String(r.updated_at ?? '') };
+  }
+
+  setVisibility(skill: string, status: VisibilityStatus, note = ''): VisibilityRow {
+    if (!skill) throw new Error('skill is required');
+    if (!VISIBILITY_STATUSES.includes(status)) throw new Error(`bad status: ${status}`);
+    this.db.prepare(`INSERT INTO visibility (skill, status, note, updated_at) VALUES (?, ?, ?, ?)
+      ON CONFLICT(skill) DO UPDATE SET status=excluded.status, note=excluded.note, updated_at=excluded.updated_at`)
+      .run(skill, status, note, new Date().toISOString());
+    return this.visibility(skill)[0];
   }
 
   record(event: UseEvent): void {

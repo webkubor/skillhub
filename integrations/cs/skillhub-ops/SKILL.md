@@ -1,7 +1,7 @@
 ---
 name: skillhub-ops
-version: "0.4.0"
-description: "CS 侧的 SkillHub 薄消费入口：能读能用 skillhub 的清单、健康、统计、Skill 生命周期档案与网页，不在 CS 承载 Skills 管理逻辑。触发条件：用户要盘点/统计本机 Skills、查格式健康、看使用统计、查 Skill 生命周期与频次、启动本地 SkillHub 网页。触发词：skillhub、技能盘点、技能统计、技能 doctor、技能生命周期、技能频次、本地技能网页。管理实现在独立仓，不在 CS。"
+version: "0.5.0"
+description: "CS 侧的 SkillHub 薄消费入口：能读能用 skillhub 的清单、健康、统计、Skill 生命周期/开源闭源档案与本地网页，不在 CS 承载 Skills 管理逻辑。触发条件：用户要盘点/统计本机 Skills、查格式健康、看使用统计、查 Skill 生命周期与来源口径、启动本地 SkillHub 网页。触发词：skillhub、技能盘点、技能统计、技能 doctor、技能生命周期、开源闭源、本地技能网页。管理实现在独立仓，不在 CS。"
 license: MIT
 author: webkubor
 category: devops
@@ -26,7 +26,8 @@ CS 保持轻量。Skills 的管理真源在**独立仓** `~/dev/agent-infra/skil
 skillhub scan --json              # 清单/分类/来源
 skillhub doctor                   # 格式健康
 skillhub stats --json             # 使用统计
-skillhub profile --json           # 每 Skill 版本/生命周期/频次/agent 档案
+skillhub profile --json           # 每 Skill 版本/生命周期/来源/频次/agent 档案
+skillhub visibility <skill> closed --note "commercial build"  # 本地口径，不改远端
 skillhub use <skill> --outcome success|partial|failed   # 记一次使用
 skillhub serve --port 4319        # 只读网页
 ```

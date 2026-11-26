@@ -1,11 +1,14 @@
 import type { SkillRecord } from './types.js';
-import { UsageStore, type LifecycleStatus } from './usage.js';
+import { UsageStore, type LifecycleStatus, type VisibilityStatus } from './usage.js';
 
 export interface SkillProfile {
   name: string;
   version: string | null;
   lifecycle: LifecycleStatus;        // 未登记默认 active
   lifecycle_note: string;
+  visibility: VisibilityStatus;      // 未登记时由 origin 推断
+  visibility_note: string;
+  visibility_source: 'explicit' | 'inferred';
   total_uses: number;
   success_rate: number;
   uses_7d: number;
@@ -14,6 +17,11 @@ export interface SkillProfile {
   unique_agents: number;
   last_used_at: string;
   path: string;
+}
+
+/** 公开 GitHub 仓库不等于开源许可证；默认只认 frontmatter 明确声明的 opensource。 */
+function inferVisibility(skill: SkillRecord): VisibilityStatus {
+  return skill.origin.startsWith('opensource:') ? 'open' : 'closed';
 }
 
 export function buildProfiles(skills: SkillRecord[], store: UsageStore): SkillProfile[] {
@@ -27,16 +35,21 @@ export function buildProfiles(skills: SkillRecord[], store: UsageStore): SkillPr
     agents.set(a.skill, list);
   }
   const lifecycle = new Map(store.lifecycle().map(r => [r.skill, r]));
+  const visibility = new Map(store.visibility().map(r => [r.skill, r]));
 
   return skills.map((s) => {
     const st = stats.get(s.name);
     const lc = lifecycle.get(s.name);
+    const vis = visibility.get(s.name);
     const ag = agents.get(s.name) ?? [];
     return {
       name: s.name,
       version: s.version,
       lifecycle: lc?.status ?? 'active',
       lifecycle_note: lc?.note ?? '',
+      visibility: vis?.status ?? inferVisibility(s),
+      visibility_note: vis?.note ?? '',
+      visibility_source: vis ? 'explicit' : 'inferred',
       total_uses: st?.uses ?? 0,
       success_rate: st?.success_rate ?? 0,
       uses_7d: freq7.get(s.name) ?? 0,

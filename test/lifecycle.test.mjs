@@ -13,6 +13,8 @@ test('lifecycle, frequency and agent aggregation', async () => {
   store.record({ skill: 'alpha', outcome: 'success', agent: 'codex' });
   store.record({ skill: 'alpha', outcome: 'failed', agent: 'claude', problem: 'x' });
   store.setLifecycle('alpha', 'deprecated', 'superseded by beta');
+  store.setVisibility('alpha', 'closed', 'commercial build');
+  store.setVisibility('unused', 'open', 'explicit open license');
 
   assert.equal(store.lifecycle('alpha')[0].status, 'deprecated');
   assert.equal(store.lifecycle('alpha')[0].note, 'superseded by beta');
@@ -32,11 +34,23 @@ test('lifecycle, frequency and agent aggregation', async () => {
   const u = profiles.find(p => p.name === 'unused');
   assert.equal(a?.version, '1.2.0');
   assert.equal(a?.lifecycle, 'deprecated');
+  assert.equal(a?.visibility, 'closed'); // 显式标注优先
+  assert.equal(a?.visibility_source, 'explicit');
+  assert.equal(a?.visibility_note, 'commercial build');
   assert.equal(a?.total_uses, 3);
   assert.equal(a?.uses_7d, 3);
   assert.equal(a?.unique_agents, 2);
   assert.equal(u?.lifecycle, 'active'); // 未登记默认 active
+  assert.equal(u?.visibility, 'open');  // 显式标注优先于 origin 推断
+  assert.equal(u?.visibility_source, 'explicit');
   assert.equal(u?.total_uses, 0);
+  store.close();
+});
+
+test('visibility rejects invalid status', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'skillhub-vis-'));
+  const store = new UsageStore(join(dir, 'u.sqlite'));
+  assert.throws(() => store.setVisibility('x', 'public'), /bad status/);
   store.close();
 });
 

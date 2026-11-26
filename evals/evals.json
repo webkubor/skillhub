@@ -26,6 +26,12 @@
       "should_trigger": true
     },
     {
+      "id": "visibility-toggle",
+      "prompt": "把我这个开源 Skill 在 SkillHub 页面里改成闭源，后续按商业版卖",
+      "expected_output": "skillhub visibility <skill> closed 或页面 POST /api/visibility；只写本地 SQLite，不自动改 GitHub 可见性、LICENSE 或支付宝商品配置",
+      "should_trigger": true
+    },
+    {
       "id": "unrelated",
       "prompt": "帮我改一下这个页面的按钮颜色",
       "expected_output": "不触发 SkillHub 技能",
