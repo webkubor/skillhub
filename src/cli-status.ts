@@ -83,9 +83,15 @@ function build(cli: 'gh' | 'glab', args: string[], detail: string): CliStatus {
   return { cli, installed, hosts, light: overall(installed, hosts), detail: installed ? detail : `${cli} 未安装` };
 }
 
-export function checkCliStatus(): CliStatus[] {
-  return [
+let cache: { at: number; value: CliStatus[] } | null = null;
+
+export function checkCliStatus(force = false): CliStatus[] {
+  const ttlMs = 60_000;
+  if (!force && cache && Date.now() - cache.at < ttlMs) return cache.value;
+  const value: CliStatus[] = [
     build('gh', ['auth', 'status'], 'GitHub CLI 登录状态'),
     build('glab', ['auth', 'status'], 'GitLab CLI 登录状态（多 host）'),
   ];
+  cache = { at: Date.now(), value };
+  return value;
 }

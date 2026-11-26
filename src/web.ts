@@ -31,6 +31,7 @@ load().catch(e=>{document.getElementById('app').textContent='failed: '+e.message
       if (path === '/api/status') return void res.end(JSON.stringify(checkCliStatus()));
       if (path === '/api/refresh') {
         cached = await scanSkills({ roots });
+        checkCliStatus(true); // 显式刷新时重新探测 CLI 状态
         return void res.end(JSON.stringify({ ok: true, count: cached.count }));
       }
       res.setHeader('content-type', 'text/html; charset=utf-8');
