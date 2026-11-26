@@ -1,0 +1,30 @@
+{
+  "name": "skillhub",
+  "version": "0.1.0",
+  "description": "Local-first Skill hub: inventory, stats, distribution, iteration gates, and CLI/web views for AI agent skills",
+  "type": "module",
+  "bin": {
+    "skillhub": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.3"
+  },
+  "keywords": ["skills", "agent", "cli", "local-first", "hub"],
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:webkubor/skillhub.git"
+  }
+}
