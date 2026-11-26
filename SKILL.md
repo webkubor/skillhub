@@ -41,7 +41,7 @@ skillhub serve --port 4319
 - `use <skill> --outcome success|partial|failed [--agent] [--session] [--problem]`：记一次使用；success 不能带 problem。
 - `stats` / `problems`：按 skill 统计次数、成功率、最近使用与问题清单；`--skill` 过滤，`--json` 输出。
 - `status [--json]`：本机 gh/glab CLI 登录状态小灯，逐个 host 显示 🟢/🔴/🟡/⚪（glab 多 host 分别显示）。
-- `relations [--json]`：Skill ↔ 仓库关系图——先用 gh 当前账户匹配自有开源（GitHub/GitLab 同名 owner 算自有），再按 git remote / frontmatter URL 认第三方；输出 own / third-party / unlinked 三组。
+- `relations [--json]`：Skill ↔ 仓库关系图——git remote 优先、frontmatter URL 回退；用 gh 当前账户的公开仓列表校准，命中公开仓=自有开源、同名账户私有仓=自有私有、其他 owner=第三方、匹配不到=未关联。输出 own-public / own-private / third-party / unlinked 四组。
 - `serve`：只读本地网页（`127.0.0.1:4319`），含清单、doctor、CLI 状态灯、仓库关系和统计表，端点 `/api/scan`、`/api/doctor`、`/api/stats`、`/api/status`、`/api/relations`、`/api/refresh`。
 
 ## 边界

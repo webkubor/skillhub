@@ -19,11 +19,11 @@ test('buildRelations classifies own, third-party and unlinked skills', async () 
     name, description: '', version: '1.0.0', scope: '', origin: 'private', category: 'test',
     path: join(root, name === 'own-skill' ? 'own' : name === 'third-skill' ? 'third' : 'none', 'SKILL.md'),
   }));
-  const rel = await buildRelations(skills, 'webkubor');
+  const rel = await buildRelations(skills, 'webkubor', new Set(['github.com/webkubor/demo-repo']));
   const own = rel.find(r => r.skill === 'own-skill');
   const third = rel.find(r => r.skill === 'third-skill');
   const none = rel.find(r => r.skill === 'none-skill');
-  assert.equal(own?.relation, 'own');
+  assert.equal(own?.relation, 'own-public');
   assert.equal(own?.repo?.url, 'https://github.com/webkubor/demo-repo');
   assert.equal(third?.relation, 'third-party');
   assert.equal(none?.relation, 'unlinked');

@@ -26,7 +26,7 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 | `doctor` | 坏 frontmatter + 自管无版本，退出码 1 表示有问题 |
 | `use <skill> --outcome ...` | 记一次使用（success/partial/failed） |
 | `status [--json]` | gh/glab CLI 登录状态小灯（多 host，逐个显示 🟢/🔴/🟡/⚪） |
-| `relations [--json]` | Skill ↔ GitHub/GitLab 仓库关系：先匹配当前账户（自有开源），再认第三方来源 |
+| `relations [--json]` | Skill ↔ GitHub/GitLab 仓库关系：git remote/frontmatter 匹配，按当前账户公开仓校准，分自有开源/自有私有/第三方/未关联 |
 | `stats` / `problems` | 次数、成功率、最近使用、问题清单，`--skill` 过滤 |
 | `serve` | 只读网页，含 CLI 状态灯 + 仓库关系；端点 `/api/scan` `/api/doctor` `/api/stats` `/api/status` `/api/relations` `/api/refresh` |
 

@@ -2,7 +2,7 @@
 import { createServer } from 'node:http';
 import { doctor, scanSkills } from './scan.js';
 import { checkCliStatus } from './cli-status.js';
-import { buildRelations, currentGithubAccount } from './relations.js';
+import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
 import { UsageStore } from './usage.js';
 import { createHandler } from './web.js';
 import type { ScanResult } from './types.js';
@@ -161,13 +161,14 @@ async function main(): Promise<void> {
   if (opts.command === 'relations') {
     const result = await loadResult(opts.roots);
     const account = await currentGithubAccount();
-    const relations = await buildRelations(result.skills, account ?? '');
+    const pub = account ? await publicRepos(account) : null;
+    const relations = await buildRelations(result.skills, account ?? '', pub ?? undefined);
     if (opts.json) {
       process.stdout.write(`${JSON.stringify({ account, relations }, null, 2)}\n`);
     } else {
-      const groups = { own: [], 'third-party': [], unlinked: [] } as Record<string, typeof relations>;
+      const groups = { 'own-public': [], 'own-private': [], 'third-party': [], unlinked: [] } as Record<string, typeof relations>;
       for (const r of relations) groups[r.relation].push(r);
-      process.stdout.write(`GitHub 账户: ${account ?? 'unknown'}\n自有开源 ${groups.own.length} · 第三方 ${groups['third-party'].length} · 未关联 ${groups.unlinked.length}\n`);
+      process.stdout.write(`GitHub 账户: ${account ?? 'unknown'} · 公开仓 ${pub?.size ?? 'unknown'}\n自有开源 ${groups['own-public'].length} · 自有私有 ${groups['own-private'].length} · 第三方 ${groups['third-party'].length} · 未关联 ${groups.unlinked.length}\n`);
       for (const [label, rows] of Object.entries(groups)) {
         if (!rows.length) continue;
         process.stdout.write(`\n[${label}]\n${rows.slice(0, 20).map(r => `  ${r.skill} → ${r.repo?.url ?? '—'} (${r.via ?? 'none'})`).join('\n')}\n`);

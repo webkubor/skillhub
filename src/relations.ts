@@ -3,7 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import type { SkillRecord } from './types.js';
 
-export type RepoRelation = 'own' | 'third-party' | 'unlinked';
+export type RepoRelation = 'own-public' | 'own-private' | 'third-party' | 'unlinked';
 
 export interface RepoLink {
   host: 'github.com' | 'gitlab.com' | 'other';
@@ -74,23 +74,27 @@ function repoFromGit(path: string): string | null {
   return null;
 }
 
-export async function buildRelations(skills: SkillRecord[], account: string): Promise<SkillRelation[]> {
+export async function buildRelations(skills: SkillRecord[], account: string, publicRepos?: Set<string>): Promise<SkillRelation[]> {
   const out: SkillRelation[] = [];
+  const lowerAccount = account.toLowerCase();
   for (const s of skills) {
     const gitRaw = repoFromGit(s.path);
     const fmRaw = await repoFromFrontmatter(s.path);
     const raw = gitRaw ?? fmRaw;
     const repo = parseRepo(raw ?? '');
     const via = gitRaw ? 'git-remote' : fmRaw ? 'frontmatter' : null;
-    const ownerMatches = repo && (
-      (repo.host === 'github.com' && repo.owner.toLowerCase() === account.toLowerCase()) ||
-      (repo.host === 'gitlab.com' && repo.owner.toLowerCase() === account.toLowerCase())
-    );
-    const isOwn = !!ownerMatches;
+    const isAccountOwner = !!repo && repo.owner.toLowerCase() === lowerAccount && ['github.com', 'gitlab.com'].includes(repo.host);
+    // 只有确认在公开仓列表里才算「自有开源」；同名但未命中公开列表（私有/公司仓）单列，不混进第三方。
+    const isPublic = !!repo && publicRepos?.has(`${repo.host}/${repo.owner}/${repo.repo}`.toLowerCase()) === true;
+    const relation: RepoRelation = !repo
+      ? 'unlinked'
+      : isAccountOwner
+        ? (isPublic ? 'own-public' : 'own-private')
+        : 'third-party';
     out.push({
       skill: s.name,
       path: s.path,
-      relation: !repo ? 'unlinked' : isOwn ? 'own' : 'third-party',
+      relation,
       repo,
       via,
     });
@@ -102,5 +106,14 @@ export async function currentGithubAccount(): Promise<string | null> {
   try {
     const login = execFileSync('gh', ['api', 'user', '--jq', '.login'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 6000 }).trim();
     return login || null;
+  } catch { return null; }
+}
+
+/** 拉当前 gh 账户的公开仓库集合；失败返回 null（此时无法区分自有公开/私有，按私有保守处理）。 */
+export async function publicRepos(account: string): Promise<Set<string> | null> {
+  try {
+    const raw = execFileSync('gh', ['repo', 'list', account, '--limit', '200', '--visibility', 'public', '--json', 'nameWithOwner'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 8000 });
+    const rows = JSON.parse(raw) as Array<{ nameWithOwner: string }>;
+    return new Set(rows.map(r => `github.com/${r.nameWithOwner}`.toLowerCase()));
   } catch { return null; }
 }
