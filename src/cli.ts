@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 import { createServer } from 'node:http';
+import { auditSkills } from './audit.js';
+import { sendWebControl } from './cli-control.js';
 import { doctor, scanSkills } from './scan.js';
 import { checkCliStatus } from './cli-status.js';
 import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
@@ -13,6 +15,7 @@ const HELP = `skillhub — local Skill hub CLI (independent of CS)
 Usage:
   skillhub scan [--root <dir>] ... [--json]
   skillhub doctor [--root <dir>] ...
+  skillhub audit [--root <dir>] ... [--json]            # 上架前安全与口径冲突门禁（存在阻断返回退出码 1）
   skillhub use <skill> --outcome success|partial|failed [--agent <id>] [--session <id>] [--problem <text>]
   skillhub stats [--skill <name>] [--json]
   skillhub problems [--skill <name>] [--json]
@@ -24,6 +27,7 @@ Usage:
   skillhub status [--json]          # gh/glab CLI 登录状态小灯
   skillhub relations [--json]       # Skill ↔ GitHub/GitLab 仓库关系（自有/第三方/未关联）
   skillhub serve [--root <dir>] ... [--port 4319]
+  skillhub ui <tab|focus|search|theme|refresh> [value]  # 实时遥控已打开的本地网页
   skillhub help
 
 Options:
@@ -132,6 +136,65 @@ async function main(): Promise<void> {
     process.exitCode = report.ok ? 0 : 1;
     return;
   }
+  if (opts.command === 'audit') {
+    const result = await loadResult(opts.roots);
+    const store = new UsageStore();
+    try {
+      const profiles = buildProfiles(result.skills, store);
+      const profileMap = new Map(profiles.map(p => [p.name, p]));
+      const account = await currentGithubAccount();
+      const pub = account ? await publicRepos(account) : null;
+      const relations = await buildRelations(result.skills, account ?? '', pub ?? undefined);
+      const relationMap = new Map(relations.map(r => [r.skill, r]));
+      const report = auditSkills(result.skills.map(s => ({
+        name: s.name,
+        description: s.description,
+        version: s.version,
+        origin: s.origin,
+        path: s.path,
+        visibility: profileMap.get(s.name)?.visibility ?? (s.origin.startsWith('opensource:') ? 'open' : 'closed'),
+        relation: relationMap.get(s.name)?.relation ?? 'unlinked',
+      })));
+      if (opts.json) {
+        process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+      } else {
+        process.stdout.write(`${report.ok ? 'ok' : 'blocked'} (errors=${report.errorCount}, warnings=${report.warnCount})\n`);
+        for (const f of report.findings) {
+          process.stdout.write(`- [${f.severity}] ${f.skill} (${f.rule}): ${f.message}\n`);
+        }
+      }
+      process.exitCode = report.ok ? 0 : 1;
+    } finally {
+      store.close();
+    }
+    return;
+  }
+  if (opts.command === 'ui') {
+    const [sub, value = ''] = opts.positionals;
+    if (!sub) throw new Error('usage: skillhub ui <tab|focus|search|theme|refresh> [value]');
+    let payload: Record<string, unknown>;
+    if (sub === 'tab') {
+      if (!['skills', 'analytics', 'relations', 'doctor'].includes(value)) {
+        throw new Error('expected tab: skills | analytics | relations | doctor');
+      }
+      payload = { action: 'tab', tab: value, message: `切换到 ${value}` };
+    } else if (sub === 'focus') {
+      if (!value) throw new Error('usage: skillhub ui focus <skill>');
+      payload = { action: 'focus', skill: value, message: `聚焦 ${value}` };
+    } else if (sub === 'search') {
+      payload = { action: 'filter', query: value, message: value ? `搜索「${value}」` : '清空搜索' };
+    } else if (sub === 'theme') {
+      if (!['dark', 'light'].includes(value)) throw new Error('expected theme: dark | light');
+      payload = { action: 'theme', theme: value, message: `切换主题：${value}` };
+    } else if (sub === 'refresh') {
+      payload = { action: 'refresh', message: 'CLI 触发全量刷新' };
+    } else {
+      throw new Error(`unknown ui action: ${sub}`);
+    }
+    const clients = await sendWebControl(opts.port, payload, true);
+    process.stdout.write(`sent: ui ${sub}${value ? ` ${value}` : ''} (active tabs: ${clients})\n`);
+    return;
+  }
   if (opts.command === 'use') {
     const skill = opts.positionals[0];
     const outcome = opts.flags.outcome;
@@ -143,6 +206,7 @@ async function main(): Promise<void> {
     } finally {
       store.close();
     }
+    await sendWebControl(opts.port, { action: 'refresh', message: `记录调用：${skill} (${outcome})` });
     return;
   }
   if (opts.command === 'stats') {

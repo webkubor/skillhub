@@ -1,6 +1,6 @@
 {
   "name": "skillhub",
-  "version": "0.5.1",
+  "version": "1.0.0",
   "description": "Local-first Skill hub: inventory, stats, distribution, iteration gates, and CLI/web views for AI agent skills",
   "type": "module",
   "bin": {
@@ -12,17 +12,25 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
+    "build:web": "npm --prefix web run build",
+    "build:all": "npm run build && npm run build:web",
     "dev": "tsx src/cli.ts",
+    "dev:web": "npm --prefix web run dev",
     "test": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "license": "MIT",
+  "dependencies": {
+    "@hono/node-server": "^1.14.1",
+    "hono": "^4.7.4",
+    "zod": "^3.24.2"
+  },
   "devDependencies": {
     "@types/node": "^22.10.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   },
-  "keywords": ["skills", "agent", "cli", "local-first", "hub"],
+  "keywords": ["agent-skills", "ai-agents", "claude-code", "codex", "cli", "local-first", "hono", "telemetry", "skillhub"],
   "repository": {
     "type": "git",
     "url": "git@github.com:webkubor/skillhub.git"

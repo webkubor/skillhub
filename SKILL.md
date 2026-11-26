@@ -1,6 +1,6 @@
 ---
 name: skillhub
-version: "0.5.1"
+version: "1.0.0"
 description: "本地 SkillHub 独立 CLI：扫描/健康/统计/遥测/每 Skill 版本与生命周期/开源闭源口径/只读网页，Skills 管理真源，CS 只做薄消费。触发条件：用户要盘点/统计本机 Skills、记录某次使用结果、查版本欠账与格式损坏、查 Skill 生命周期与频次、把 Skill 标记为开源或闭源、启动本地 SkillHub 网页。触发词：skillhub、技能中心、技能盘点、技能统计、技能 doctor、技能生命周期、技能频次、开源闭源、记录 skill 使用。"
 license: MIT
 author: webkubor

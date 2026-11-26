@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" fill="none">
+  <defs>
+    <linearGradient id="sh-frame" x1="20" y1="16" x2="108" y2="112" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#8FA8D8" />
+      <stop offset="52%" stop-color="#7EB8A4" />
+      <stop offset="100%" stop-color="#A89AD2" />
+    </linearGradient>
+    <linearGradient id="sh-core" x1="44" y1="44" x2="84" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#A5BEE8" />
+      <stop offset="100%" stop-color="#83C4AE" />
+    </linearGradient>
+  </defs>
+  <rect width="128" height="128" rx="28" fill="#181C24" />
+  <path
+    d="M64 18 103.8 41v46L64 110 24.2 87V41L64 18Z"
+    stroke="url(#sh-frame)"
+    stroke-width="6.5"
+    stroke-linejoin="round"
+  />
+  <path
+    d="M64 34v16M64 78v16M38 49l14 8M76 71l14 8M90 49l-14 8M52 71l-14 8"
+    stroke="url(#sh-frame)"
+    stroke-width="4.5"
+    stroke-linecap="round"
+    opacity="0.72"
+  />
+  <circle cx="64" cy="33" r="5" fill="#8FA8D8" />
+  <circle cx="91" cy="48.5" r="5" fill="#7EB8A4" />
+  <circle cx="91" cy="79.5" r="5" fill="#A89AD2" />
+  <circle cx="64" cy="95" r="5" fill="#7EB8A4" />
+  <circle cx="37" cy="79.5" r="5" fill="#8FA8D8" />
+  <circle cx="37" cy="48.5" r="5" fill="#A89AD2" />
+  <path
+    d="M64 46 79.6 55v18L64 82 48.4 73V55L64 46Z"
+    fill="url(#sh-core)"
+  />
+  <circle cx="64" cy="64" r="6" fill="#181C24" />
+</svg>

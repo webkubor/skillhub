@@ -1,47 +1,60 @@
 # SkillHub 本地网页设计契约
 
-> 本文件是 ui-design Step 1/2 的落盘结果。项目原先没有 DESIGN.md；本次按现有只读本地工具的形态反推并记录，不引入新风格体系。
->
-> 适用范围：`skillhub serve` 输出的本机 `127.0.0.1` 管理页。它是内部本地工具，GEO/SEO 不适用。
+> 适用范围：`skillhub serve` 托管的本机 `127.0.0.1:4319` 控制台（`web/` Next.js App Router 静态导出 + `src/web.ts` Hono API 单端口服务）。
 
-## 定位与语气
+## 品牌与定位
 
-- 定位：本机 Skill 资产的只读清单 + 少量本地口径管理。
-- 语气：工程师工具，信息密度优先；不营销、不装饰。
-- 用户任务：一眼看清 Skill 清单、健康、仓库关系、版本/生命周期/来源可见性、调用统计；必要时把某个 Skill 标记为开源或闭源。
+- 品牌标识：1:1 透明底六边形核心路由标识（[assets/logo.svg](assets/logo.svg)、[web/public/favicon.svg](web/public/favicon.svg)、[brand-logo.tsx](web/src/components/ui/brand-logo.tsx)），呼应「多 Agent 节点汇聚单一 Skill 真源核心」的产品心智，明暗双色自动继承 Bloom OKLCH 语义变量。
+- 定位：本机 Skill 资产控制面（清单、调用遥测、Git 版本 Diff、仓库关系、上架前安全审计、本地口径与生命周期管理）。
+- 语气：高信息密度的工程师控制台，遵循「把审美做成可验证的工程」——柔和克制、层次分明、无营销装饰。
+- 架构边界：
+  - 前端：`web/` — Next.js (App Router, `output: 'export'`) + Tailwind CSS v4 + Radix/shadcn 原语 + TanStack Query + Nuqs（URL as State）+ Recharts + 定制 Agent 矢量图标（`agent-badge.tsx`）+ 动态上手引导（`onboarding-guide.tsx`）。
+  - 后端：`src/web.ts` — Hono + `@hono/node-server` + Zod，单端口同时提供 `/api/*`（含 `/api/audit` 与 `/api/skills/:name/{source,history,diff}`）与 `web/out` 静态文件托管。
+  - 持久化：本机 Git/Markdown 文件为 Skill 源码真源，本机 `node:sqlite`（`~/.local/state/skillhub/usage.sqlite`）为遥测与管理口径真源。
 
-## 视觉系统
+## 视觉系统（Bloom OKLCH 明暗双色）
 
-### Tokens
+以三层表面色阶区分画布、面板与表头，避免纯黑底配荧光高饱和色；所有语义色均按 WCAG AA 对比度调校。
 
-当前网页是单文件 `node:http` 输出，没有独立 CSS 构建链。因此 tokens 以页面 `:root` CSS 变量承载，后续若接入框架再迁到独立 tokens 文件。
+### Dark（默认，Obsidian Morandi）
 
-| Token | 值 | 用途 |
-|---|---:|---|
-| `--bg` | `#0f1115` | 页面底色 |
-| `--fg` | `#e8eaed` | 正文 |
-| `--line` | `#2b2f38` | 表格分隔线、控件描边 |
-| `--code` | `#9cdcfe` | 代码、focus 轮廓 |
-| `--ok` | `#7ee787` | 正常/开源/在线 |
-| `--warn` | `#f5a97f` | 提醒/闭源/异常 |
-| `--muted` | `#9aa0a6` | 次要信息 |
-| `--chip` | `#1b1f27` | 未选中按钮底 |
-| `--chip-active` | `#233025` | 选中按钮底 |
+| Token | OKLCH 值 | 用途 |
+|---|---|---|
+| `--bg` | `oklch(0.155 0.010 255)` | 页面底色 |
+| `--surface` | `oklch(0.192 0.012 255)` | 卡片、主表容器、侧边抽屉顶栏 |
+| `--surface-2` | `oklch(0.228 0.014 255)` | 表头、激活 Tab、徽标底色 |
+| `--border` | `oklch(0.295 0.014 255)` | 常规描边与表格分割线 |
+| `--fg` | `oklch(0.935 0.008 255)` | 主正文 |
+| `--fg-muted` | `oklch(0.665 0.014 255)` | 次要元信息 |
+| `--ok` | `oklch(0.765 0.105 155)` | 正常 / 开源 / 自有公开 / 在线 |
+| `--warn` | `oklch(0.785 0.110 68)` | 闭源 / 自有私有 / 提醒 |
+| `--danger` | `oklch(0.725 0.125 22)` | 失败 / 损坏 |
+| `--info` | `oklch(0.765 0.095 245)` | 链接 / 第三方仓库 / 焦点轮廓 |
 
-### 组件模式
+### Light（Parchment Morandi，顶栏可一键切换）
 
-- 表格：全宽、`border-collapse`，行间用 `--line` 分隔。
-- 状态：用 🟢/🔒 + 颜色表达，不依赖颜色单独传达含义。
-- 来源可见性切换：两个胶囊按钮，当前值 `aria-pressed=true`，用 `--chip-active` + `--ok/--warn` 标记。
-- 焦点：所有交互控件必须有 `:focus-visible`，用 `--code` 轮廓。
-- 禁用：请求进行中禁用按钮，避免重复提交。
+| Token | OKLCH 值 | 用途 |
+|---|---|---|
+| `--bg` | `oklch(0.972 0.006 85)` | 浅色宣纸底 |
+| `--surface` | `oklch(0.994 0.003 85)` | 卡片与表格面 |
+| `--surface-2` | `oklch(0.948 0.008 85)` | 表头与次级面 |
+| `--fg` | `oklch(0.215 0.014 255)` | 深墨正文 |
+
+## 布局与组件模式
+
+- **容器**：居中 `max-w-[1360px]`，顶栏 sticky 玻璃态，收纳品牌、CLI 状态点（`gh`/`glab`）、合规说明开关、刷新按钮与明暗切换。
+- **KPI 摘要条**：4 卡并列（Skill 资产总数 + Doctor 状态、开源/闭源比例条、近 30d/7d 调用与成功率、仓库映射分布）。
+- **主视图 Tab（URL 状态化）**：通过 `nuqs` 将 `tab / q / vis / lifecycle / rel / sort` 同步至 URL 查询参数，支持刷新与分享不丢状态。
+  - `Skills 控制台`：合并原先四张重复表，提供即时搜索、口径/生命周期/仓库筛选、排序、内联乐观更新开关（无整页闪屏），点击行滑出侧边抽屉查看 `SKILL.md` 源码与 Agent 分布。
+  - `调用统计`：Recharts 横向高频排行图 + Agent 堆叠分布图 + 调用明细表 + 异常记录。
+  - `仓库关系`：GitHub/GitLab 仓库归属表与外链。
+  - `健康诊断`：Doctor 检查结果、损坏文件与已扫描根目录。
+- **排版与无障碍**：
+  - 禁用系统 Emoji 充当状态图标，统一用 6px CSS `StatusDot` + Lucide 线性图标。
+  - 所有计数、百分比、时间戳强制 `font-mono tabular-nums` 并右对齐。
+  - 所有交互控件具备 `:focus-visible` 轮廓（`--info`）与 `aria-pressed` / `aria-label`。
 
 ## Do / Don't
 
-- Do：新增字段复用现有表格模式；所有新颜色引用 tokens；写操作限定在 `POST /api/visibility`。
-- Don't：不做卡片墙、渐变背景、营销 hero；不把“开源/闭源”误写成平台发布状态；不自动改 GitHub/LICENSE/支付宝配置。
-
-## 决策记录
-
-- 2026-11-26：用户要求页面可把开源 Skill 改为闭源。合同审阅结论是本地页面开关只能改变 SkillHub 的管理口径，不能追溯改变已公开仓库或已发放许可证，因此网页只提供 `open|closed` 标注与写入本地 SQLite。
-- 2026-11-26：默认口径取 `origin: opensource:*` 为开源，其余为闭源；显式标注优先。公开 GitHub 仓库不等于开源许可证，故不把 `own-public` 当作默认开源依据。
+- Do：所有颜色引用 CSS 变量 tokens；写操作仅限于本机 SQLite 的 `POST /api/visibility` 与 `POST /api/lifecycle`。
+- Don't：不自动修改 GitHub/GitLab 远端可见性、LICENSE 或外部商品配置；不复制 Skill 正文进仓库数据库。

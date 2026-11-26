@@ -1,66 +1,284 @@
+import { readFileSync, statSync } from 'node:fs';
+import { dirname, relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { doctor, scanSkills } from './scan.js';
+import { getRequestListener } from '@hono/node-server';
+import { serveStatic } from '@hono/node-server/serve-static';
+import { Hono } from 'hono';
+import { streamSSE } from 'hono/streaming';
+import { z } from 'zod';
+import { auditSkills } from './audit.js';
 import { checkCliStatus } from './cli-status.js';
-import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
-import { UsageStore } from './usage.js';
+import { getSkillGitDiff, getSkillGitHistory, isValidCommitRef } from './git-history.js';
 import { buildProfiles } from './profile.js';
+import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
+import { doctor, scanSkills } from './scan.js';
 import type { ScanResult } from './types.js';
+import { UsageStore } from './usage.js';
 
-export async function createHandler(roots: string[], usage?: UsageStore) {
+const VisibilitySchema = z.object({
+  skill: z.string().min(1),
+  status: z.enum(['open', 'closed']),
+  note: z.string().optional().default(''),
+});
+
+const LifecycleSchema = z.object({
+  skill: z.string().min(1),
+  status: z.enum(['draft', 'active', 'deprecated', 'archived']),
+  note: z.string().optional().default(''),
+});
+
+const ControlSchema = z.object({
+  action: z.enum(['refresh', 'tab', 'focus', 'theme', 'filter', 'toast']),
+  tab: z.enum(['skills', 'analytics', 'relations', 'doctor']).optional(),
+  skill: z.string().optional(),
+  theme: z.enum(['dark', 'light']).optional(),
+  query: z.string().optional(),
+  visibility: z.enum(['all', 'open', 'closed']).optional(),
+  message: z.string().optional(),
+});
+
+export type ControlEvent = z.infer<typeof ControlSchema>;
+
+export async function createApp(roots: string[], usage?: UsageStore) {
   let cached: ScanResult = await scanSkills({ roots });
   const store = usage ?? new UsageStore();
   const account = await currentGithubAccount();
   const pub = account ? await publicRepos(account) : null;
   let relations = await buildRelations(cached.skills, account ?? '', pub ?? undefined);
-  const html = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>SkillHub</title><style>
-body{font:14px system-ui,sans-serif;margin:2rem;background:var(--bg);color:var(--fg)}:root{--bg:#0f1115;--fg:#e8eaed;--line:#2b2f38;--code:#9cdcfe;--ok:#7ee787;--warn:#f5a97f;--muted:#9aa0a6;--chip:#1b1f27;--chip-active:#233025}h1{font-size:1.5rem}h2{font-size:1.1rem;margin-top:2rem}table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:.5rem;border-bottom:1px solid var(--line)}code{color:var(--code)}.warn{color:var(--warn)}.ok{color:var(--ok)}.muted{color:var(--muted)}.dot{font-size:1.1rem}.vis{display:inline-flex;gap:.25rem}.vis button{font:inherit;color:var(--fg);background:var(--chip);border:1px solid var(--line);border-radius:999px;padding:.25rem .6rem;cursor:pointer}.vis button[aria-pressed="true"]{background:var(--chip-active);border-color:var(--ok)}.vis button[data-value="closed"][aria-pressed="true"]{border-color:var(--warn)}.vis button:focus-visible{outline:2px solid var(--code);outline-offset:2px}.vis button:disabled{opacity:.6;cursor:wait}
-</style></head><body><h1>SkillHub <span class="ok">local</span></h1>
-<p>独立 SkillHub，只读视图 + 本地来源口径标注。端点：<code>/api/scan</code> · <code>/api/doctor</code> · <code>/api/stats</code> · <code>/api/status</code> · <code>/api/relations</code> · <code>/api/profiles</code> · <code>/api/refresh</code>；切换来源：<code>POST /api/visibility</code></p>
-<h2>合规提示</h2><p class="warn">开源/闭源只改变 SkillHub 的本地管理口径，不会改 GitHub 可见性、LICENSE 或支付宝商品配置。已公开历史版本和已发放许可证不会因此收回。</p>
-<h2>CLI 状态</h2><div id="cli">loading…</div>
-<h2>仓库关系</h2><div id="relations">loading…</div>
-<h2>Skill 档案（版本 / 生命周期 / 频次 / Agent）</h2><div id="profiles">loading…</div>
-<h2>清单</h2><div id="app">loading…</div>
-<h2>使用统计</h2><div id="stats">loading…</div>
-<script>
-async function load(){const [c,r,p,s,d,t]=await Promise.all([fetch('/api/status').then(r=>r.json()),fetch('/api/relations').then(r=>r.json()),fetch('/api/profiles').then(r=>r.json()),fetch('/api/scan').then(r=>r.json()),fetch('/api/doctor').then(r=>r.json()),fetch('/api/stats').then(r=>r.json())]);
-document.getElementById('cli').innerHTML = c.map(x=>'<p><span class="dot">'+x.light+'</span> <b>'+x.cli+'</b> '+(x.hosts.length?x.hosts.map(h=>'<span class="dot">'+h.light+'</span> <code>'+h.host+'</code>'+(h.user?' ('+h.user+')':'')).join(' &nbsp; '):'<span class="muted">'+x.detail+'</span>')+'</p>').join('');
-const rel=r.relations||[];const ownPub=rel.filter(x=>x.relation==='own-public').length,ownPriv=rel.filter(x=>x.relation==='own-private').length,third=rel.filter(x=>x.relation==='third-party').length;document.getElementById('relations').innerHTML='<p>GitHub 账户 <code>'+(r.account||'unknown')+'</code> · 🟢 自有开源 '+ownPub+' · 🟡 自有私有 '+ownPriv+' · 🔵 第三方 '+third+' · ⚪ 未关联 '+(rel.length-ownPub-ownPriv-third)+'</p><table><tr><th>Skill</th><th>关系</th><th>仓库</th><th>来源</th></tr>'+rel.filter(x=>x.repo).map(x=>'<tr><td><code>'+x.skill+'</code></td><td>'+(x.relation==='own-public'?'🟢 自有开源':x.relation==='own-private'?'🟡 自有私有':'🔵 第三方')+'</td><td><a href="'+x.repo.url+'" target="_blank" rel="noopener">'+x.repo.host+'/'+x.repo.owner+'/'+x.repo.repo+'</a></td><td>'+(x.via||'—')+'</td></tr>').join('')+'</table>';
-const prof=p||[];document.getElementById('profiles').innerHTML='<table><tr><th>Skill</th><th>Version</th><th>Status</th><th>Source</th><th>Total</th><th>7d</th><th>30d</th><th>Agents</th></tr>'+prof.filter(x=>x.lifecycle!=='archived').map(x=>'<tr data-skill="'+x.name+'"><td><code>'+x.name+'</code></td><td>'+(x.version||'—')+'</td><td>'+x.lifecycle+'</td><td><span class="vis"><button type="button" data-value="open" aria-pressed="'+(x.visibility==='open')+'"'+(x.visibility==='open'?' class="ok"':'')+'>🟢 开源</button><button type="button" data-value="closed" aria-pressed="'+(x.visibility==='closed')+'"'+(x.visibility==='closed'?' class="warn"':'')+'>🔒 闭源</button></span><br><span class="muted">'+(x.visibility_source==='explicit'?'本地标注':'由 origin 推断')+'</span></td><td>'+x.total_uses+'</td><td>'+x.uses_7d+'</td><td>'+x.uses_30d+'</td><td>'+x.unique_agents+'</td></tr>').join('')+'</table>';
-document.querySelectorAll('.vis button').forEach(btn=>btn.addEventListener('click',async()=>{const row=btn.closest('tr');const skill=row?.dataset.skill;if(!skill)return;const status=btn.dataset.value;btn.disabled=true;try{const res=await fetch('/api/visibility',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({skill,status,note:'page toggle'})});if(!res.ok)throw new Error(await res.text());await load()}catch(e){alert('切换失败：'+e.message)}finally{btn.disabled=false}}));
-document.getElementById('app').innerHTML='<p>'+s.count+' skills · '+s.broken.length+' broken · doctor '+(d.ok?'<span class="ok">ok</span>':'<span class="warn">'+d.problems.length+' problems</span>')+'</p><table><tr><th>Name</th><th>Version</th><th>Category</th><th>Origin</th><th>Scope</th></tr>'+s.skills.map(x=>'<tr><td><code>'+x.name+'</code></td><td>'+(x.version||'—')+'</td><td>'+x.category+'</td><td>'+x.origin+'</td><td>'+(x.scope||'—')+'</td></tr>').join('')+'</table>';
-document.getElementById('stats').innerHTML = t.length ? '<table><tr><th>Skill</th><th>Uses</th><th>Success</th><th>Partial</th><th>Failed</th><th>Rate</th><th>Last</th></tr>'+t.map(r=>'<tr><td><code>'+r.skill+'</code></td><td>'+r.uses+'</td><td>'+r.success+'</td><td>'+r.partial+'</td><td>'+r.failed+'</td><td>'+(r.success_rate*100).toFixed(1)+'%</td><td>'+r.last_used_at.slice(0,16).replace('T',' ')+'</td></tr>').join('')+'</table>' : '<p class="muted">暂无使用记录。跑 <code>skillhub use &lt;skill&gt; --outcome success</code> 开始统计。</p>';}
-load().catch(e=>{document.getElementById('app').textContent='failed: '+e.message});</script></body></html>`;
+  let refreshedAt = new Date().toISOString();
 
-  return async function handler(req: IncomingMessage, res: ServerResponse): Promise<void> {
-    try {
-      const path = new URL(req.url ?? '/', 'http://localhost').pathname;
-      res.setHeader('content-type', 'application/json; charset=utf-8');
-      if (path === '/api/scan') return void res.end(JSON.stringify(cached));
-      if (path === '/api/doctor') return void res.end(JSON.stringify(doctor(cached)));
-      if (path === '/api/stats') return void res.end(JSON.stringify(store.stats()));
-      if (path === '/api/status') return void res.end(JSON.stringify(checkCliStatus()));
-      if (path === '/api/relations') return void res.end(JSON.stringify({ account, relations }));
-      if (path === '/api/profiles') return void res.end(JSON.stringify(buildProfiles(cached.skills, store)));
-      if (path === '/api/visibility' && req.method === 'POST') {
-        const chunks: Buffer[] = [];
-        for await (const chunk of req) chunks.push(Buffer.from(chunk));
-        const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { skill?: string; status?: string; note?: string };
-        if (!body.skill || !body.status) throw new Error('skill and status are required');
-        const row = store.setVisibility(body.skill, body.status as 'open' | 'closed', body.note ?? '');
-        return void res.end(JSON.stringify(row));
+  const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
+  const webOutDir = resolve(packageRoot, 'web', 'out');
+  const staticRoot = relative(process.cwd(), webOutDir) || '.';
+
+  // Active SSE subscribers for CLI -> Web real-time control
+  const subscribers = new Set<(event: ControlEvent) => void>();
+  const broadcast = (event: ControlEvent) => {
+    for (const send of subscribers) {
+      try {
+        send(event);
+      } catch {
+        subscribers.delete(send);
       }
-      if (path === '/api/refresh') {
-        cached = await scanSkills({ roots });
-        relations = await buildRelations(cached.skills, account ?? '', pub ?? undefined);
-        checkCliStatus(true); // 显式刷新时重新探测 CLI 状态
-        return void res.end(JSON.stringify({ ok: true, count: cached.count }));
-      }
-      res.setHeader('content-type', 'text/html; charset=utf-8');
-      res.end(html);
-    } catch (error) {
-      res.statusCode = 500;
-      res.end(String(error));
     }
+    return subscribers.size;
   };
+
+  const app = new Hono();
+
+  function buildOverview() {
+    const profiles = buildProfiles(cached.skills, store);
+    const profileMap = new Map(profiles.map((p) => [p.name, p]));
+    const relationMap = new Map(relations.map((r) => [r.skill, r]));
+    const doctorReport = doctor(cached);
+    const cliStatus = checkCliStatus();
+    const stats = store.stats();
+    const agents = store.agents();
+    const problems = store.problems();
+
+    const skills = cached.skills.map((s) => {
+      const p = profileMap.get(s.name);
+      const r = relationMap.get(s.name);
+      return {
+        name: s.name,
+        description: s.description,
+        version: s.version,
+        scope: s.scope,
+        origin: s.origin,
+        category: s.category,
+        path: s.path,
+        lifecycle: p?.lifecycle ?? 'active',
+        lifecycle_note: p?.lifecycle_note ?? '',
+        visibility: p?.visibility ?? (s.origin.startsWith('opensource:') ? 'open' : 'closed'),
+        visibility_note: p?.visibility_note ?? '',
+        visibility_source: p?.visibility_source ?? 'inferred',
+        total_uses: p?.total_uses ?? 0,
+        success_rate: p?.success_rate ?? 0,
+        uses_7d: p?.uses_7d ?? 0,
+        uses_30d: p?.uses_30d ?? 0,
+        agents: p?.agents ?? [],
+        unique_agents: p?.unique_agents ?? 0,
+        last_used_at: p?.last_used_at ?? '',
+        relation: r?.relation ?? 'unlinked',
+        repo: r?.repo ?? null,
+        via: r?.via ?? null,
+      };
+    });
+
+    const auditReport = auditSkills(skills);
+    const totalUses = stats.reduce((sum, r) => sum + r.uses, 0);
+    const totalSuccess = stats.reduce((sum, r) => sum + r.success, 0);
+    const uses7d = skills.reduce((sum, s) => sum + s.uses_7d, 0);
+    const uses30d = skills.reduce((sum, s) => sum + s.uses_30d, 0);
+
+    const summary = {
+      totalSkills: skills.length,
+      activeSkills: skills.filter((s) => s.lifecycle === 'active').length,
+      archivedSkills: skills.filter((s) => s.lifecycle === 'archived').length,
+      brokenCount: cached.broken.length,
+      doctorOk: doctorReport.ok,
+      doctorProblemsCount: doctorReport.problems.length,
+      auditOk: auditReport.ok,
+      auditErrorCount: auditReport.errorCount,
+      auditWarnCount: auditReport.warnCount,
+      openCount: skills.filter((s) => s.visibility === 'open').length,
+      closedCount: skills.filter((s) => s.visibility === 'closed').length,
+      totalUses,
+      uses7d,
+      uses30d,
+      overallSuccessRate: totalUses ? totalSuccess / totalUses : 0,
+      ownPublicCount: skills.filter((s) => s.relation === 'own-public').length,
+      ownPrivateCount: skills.filter((s) => s.relation === 'own-private').length,
+      thirdPartyCount: skills.filter((s) => s.relation === 'third-party').length,
+      unlinkedCount: skills.filter((s) => s.relation === 'unlinked').length,
+    };
+
+    return {
+      summary,
+      account: account ?? null,
+      cliStatus,
+      doctor: doctorReport,
+      audit: auditReport,
+      skills,
+      relations,
+      stats,
+      agents,
+      problems,
+      broken: cached.broken,
+      scannedRoots: cached.scannedRoots,
+      refreshedAt,
+    };
+  }
+
+  const handleRefresh = async () => {
+    cached = await scanSkills({ roots });
+    relations = await buildRelations(cached.skills, account ?? '', pub ?? undefined);
+    checkCliStatus(true);
+    refreshedAt = new Date().toISOString();
+    return { ok: true, count: cached.count, refreshedAt };
+  };
+
+  app.get('/api/overview', (c) => c.json(buildOverview()));
+  app.get('/api/audit', (c) => c.json(buildOverview().audit));
+  app.get('/api/scan', (c) => c.json(cached));
+  app.get('/api/doctor', (c) => c.json(doctor(cached)));
+  app.get('/api/stats', (c) => c.json(store.stats()));
+  app.get('/api/status', (c) => c.json(checkCliStatus()));
+  app.get('/api/relations', (c) => c.json({ account, relations }));
+  app.get('/api/profiles', (c) => c.json(buildProfiles(cached.skills, store)));
+
+  app.get('/api/events', (c) => {
+    return streamSSE(c, async (stream) => {
+      const send = (event: ControlEvent) => {
+        void stream.writeSSE({ event: 'control', data: JSON.stringify(event) });
+      };
+      subscribers.add(send);
+      await stream.writeSSE({ event: 'ready', data: JSON.stringify({ connected: true, at: new Date().toISOString() }) });
+
+      const timer = setInterval(() => {
+        void stream.writeSSE({ event: 'ping', data: String(Date.now()) }).catch(() => {
+          clearInterval(timer);
+          subscribers.delete(send);
+        });
+      }, 25_000);
+
+      stream.onAbort(() => {
+        clearInterval(timer);
+        subscribers.delete(send);
+      });
+
+      await new Promise<void>((resolveAbort) => {
+        stream.onAbort(() => resolveAbort());
+      });
+    });
+  });
+
+  app.post('/api/control', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = ControlSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: 'Invalid control payload', issues: parsed.error.issues }, 400);
+    }
+    if (parsed.data.action === 'refresh') {
+      await handleRefresh();
+    }
+    const clients = broadcast(parsed.data);
+    return c.json({ ok: true, clients, event: parsed.data });
+  });
+
+  app.get('/api/skills/:name/source', (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const skill = cached.skills.find((s) => s.name === name);
+    if (!skill) return c.json({ error: `Skill not found: ${name}` }, 404);
+    try {
+      const stat = statSync(skill.path);
+      const raw = readFileSync(skill.path, 'utf8');
+      const content = raw.length > 65536 ? `${raw.slice(0, 65536)}\n\n... (truncated)` : raw;
+      return c.json({ name: skill.name, path: skill.path, content, updatedAt: stat.mtime.toISOString(), sizeBytes: stat.size });
+    } catch (err) {
+      return c.json({ name: skill.name, path: skill.path, content: `Failed to read: ${String(err)}` });
+    }
+  });
+
+  app.get('/api/skills/:name/history', (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const skill = cached.skills.find((s) => s.name === name);
+    if (!skill) return c.json({ error: `Skill not found: ${name}` }, 404);
+    const commits = getSkillGitHistory(skill.path, 12);
+    return c.json({ name: skill.name, path: skill.path, commits });
+  });
+
+  app.get('/api/skills/:name/diff', (c) => {
+    const name = decodeURIComponent(c.req.param('name'));
+    const skill = cached.skills.find((s) => s.name === name);
+    if (!skill) return c.json({ error: `Skill not found: ${name}` }, 404);
+    const from = c.req.query('from') ?? '';
+    const to = c.req.query('to') || undefined;
+    if (!from || !isValidCommitRef(from) || (to && !isValidCommitRef(to))) {
+      return c.json({ error: 'Invalid commit reference' }, 400);
+    }
+    const diff = getSkillGitDiff(skill.path, from, to);
+    return c.json({ name: skill.name, from, to: to ?? null, diff });
+  });
+
+  app.post('/api/visibility', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = VisibilitySchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'Invalid payload', issues: parsed.error.issues }, 400);
+    const row = store.setVisibility(parsed.data.skill, parsed.data.status, parsed.data.note);
+    broadcast({ action: 'refresh', message: `${parsed.data.skill} → ${parsed.data.status}` });
+    return c.json(row);
+  });
+
+  app.post('/api/lifecycle', async (c) => {
+    const body = await c.req.json().catch(() => null);
+    const parsed = LifecycleSchema.safeParse(body);
+    if (!parsed.success) return c.json({ error: 'Invalid payload', issues: parsed.error.issues }, 400);
+    const row = store.setLifecycle(parsed.data.skill, parsed.data.status, parsed.data.note);
+    broadcast({ action: 'refresh', message: `${parsed.data.skill} → ${parsed.data.status}` });
+    return c.json(row);
+  });
+
+  app.post('/api/refresh', async (c) => {
+    const out = await handleRefresh();
+    broadcast({ action: 'refresh' });
+    return c.json(out);
+  });
+  app.get('/api/refresh', async (c) => c.json(await handleRefresh()));
+
+  app.use('/*', serveStatic({ root: staticRoot }));
+  app.get('*', serveStatic({ path: `${staticRoot}/index.html` }));
+
+  app.onError((err, c) => c.json({ error: err.message || 'Internal Server Error' }, 500));
+
+  return app;
+}
+
+export async function createHandler(
+  roots: string[],
+  usage?: UsageStore,
+): Promise<(req: IncomingMessage, res: ServerResponse) => void> {
+  const app = await createApp(roots, usage);
+  return getRequestListener(app.fetch);
 }
