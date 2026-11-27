@@ -1,0 +1,35 @@
+{
+  "skill_name": "skillhub-ops",
+  "cases": [
+    {
+      "id": "inventory",
+      "prompt": "我的 Skills 太多了，帮我盘点本地技能的版本、来源和使用统计",
+      "expected_output": "只跑 skillhub scan --json、skillhub stats --json、skillhub profile --json 读取清单/统计/档案，不改文件",
+      "should_trigger": true
+    },
+    {
+      "id": "doctor-audit",
+      "prompt": "技能格式和使用口径健康吗？帮我查一下",
+      "expected_output": "跑 skillhub doctor 与 skillhub audit 读取健康/门禁报告，不把管理逻辑塞进 CS，不直接改 SKILL.md",
+      "should_trigger": true
+    },
+    {
+      "id": "lifecycle-visibility",
+      "prompt": "技能生命周期怎么标？把一个 Skill 标为 deprecated，并记录它的开源闭源口径",
+      "expected_output": "使用 skillhub lifecycle/visibility 写本地 SQLite；说明不改远端仓库或外部市场",
+      "should_trigger": true
+    },
+    {
+      "id": "pack-skill",
+      "prompt": "把某个自管 Skill 打包成可发布的 .skill 归档",
+      "expected_output": "不触发 CS 薄消费入口；指向独立仓 skillhub 的打包路线，且 publish: never 不允许打包发布",
+      "should_trigger": false
+    },
+    {
+      "id": "unrelated-copy",
+      "prompt": "帮我写一段活动宣传文案",
+      "expected_output": "不触发 SkillHub 运维技能",
+      "should_trigger": false
+    }
+  ]
+}
