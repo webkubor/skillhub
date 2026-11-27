@@ -16,8 +16,11 @@ CS **不**：复制 skillhub 规则正文、持有 Skill 真源副本、承接�
 ## 接入
 
 1. `./install.sh`（独立仓）把入口装到 `~/.local/bin/skillhub`。
-2. CS 侧插件 `integrations/cs/skillhub-ops/SKILL.md` 只教 Agent 何时调 `skillhub scan/doctor/stats/use/serve`。
-3. 数据契约见 `src/types.ts`；网页端点 `/api/scan`、`/api/doctor`、`/api/stats`、`/api/refresh`。
+2. CS 侧插件 `integrations/cs/skillhub-ops/SKILL.md` 只教 Agent 何时调 `skillhub scan/doctor/audit/stats/use/serve`。
+3. 该插件是 CS 侧**唯一**副本：CS 的 `var/skill-roots.txt` 注册根指向
+   `~/dev/agent-infra/skillhub/integrations/cs`，`cs skill install` 把 9 个运行时软链到这里。
+   CS 仓内不再保留同名正文或评测集（2026-11-27 迁出，CortexOS `8c1f9dd7`）。
+4. 数据契约见 `src/types.ts`；网页端点 `/api/scan`、`/api/doctor`、`/api/stats`、`/api/refresh`。
 
 ## 版本
 
