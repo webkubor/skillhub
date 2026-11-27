@@ -1,9 +1,10 @@
 import { readFileSync } from 'node:fs';
 import type { RepoRelation } from './relations.js';
+import type { DuplicateSkill } from './types.js';
 import type { VisibilityStatus } from './usage.js';
 
 export type AuditSeverity = 'error' | 'warn';
-export type AuditRule = 'visibility-conflict' | 'secret-leak' | 'missing-version' | 'missing-description' | 'publish-never';
+export type AuditRule = 'visibility-conflict' | 'secret-leak' | 'missing-version' | 'missing-description' | 'publish-never' | 'duplicate-name';
 
 export interface AuditFinding {
   skill: string;
@@ -38,8 +39,19 @@ const SECRET_PATTERNS: Array<{ label: string; regex: RegExp }> = [
   { label: 'Private Key Block', regex: /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/ },
 ];
 
-export function auditSkills(skills: AuditableSkill[]): AuditReport {
+export function auditSkills(skills: AuditableSkill[], duplicates: DuplicateSkill[] = []): AuditReport {
   const findings: AuditFinding[] = [];
+
+  // 0. 同名多份：真源不唯一，必须先合并，否则改哪份都可能不生效
+  for (const d of duplicates) {
+    findings.push({
+      skill: d.name,
+      severity: 'error',
+      rule: 'duplicate-name',
+      message: `同名 Skill 存在 ${d.shadowed.length + 1} 份，实际只采用 ${d.kept}`,
+      suggestion: `合并为唯一真源后删除其余副本：${d.shadowed.join(', ')}`,
+    });
+  }
 
   for (const s of skills) {
     // 1. 显式发布禁令：作者声明 publish: never 时，任何打包/分发都必须阻断

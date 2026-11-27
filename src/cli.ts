@@ -104,6 +104,7 @@ function renderText(result: ScanResult): string {
   return [
     `skills: ${result.count}`,
     `broken: ${result.broken.length}`,
+    `duplicates: ${result.duplicates.length}`,
     `categories: ${[...byCategory.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
     `origins: ${[...origins.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
   ].join('\n');
@@ -155,7 +156,7 @@ async function main(): Promise<void> {
         publish: s.publish,
         visibility: profileMap.get(s.name)?.visibility ?? (s.origin.startsWith('opensource:') ? 'open' : 'closed'),
         relation: relationMap.get(s.name)?.relation ?? 'unlinked',
-      })));
+      })), result.duplicates);
       if (opts.json) {
         process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
       } else {

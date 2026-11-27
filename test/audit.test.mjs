@@ -104,3 +104,23 @@ test('auditSkills blocks publish: never and allows explicit allow', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('auditSkills blocks duplicate skill names (non-unique source of truth)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skillhub-audit-dup-'));
+  try {
+    const file = join(dir, 'SKILL.md');
+    writeFileSync(file, '# Dup\nNo secrets here.\n', 'utf8');
+    const report = auditSkills(
+      [baseSkill('same-skill', file, null)],
+      [{ name: 'same-skill', kept: file, shadowed: [join(dir, 'other', 'SKILL.md')] }],
+    );
+    assert.equal(report.ok, false);
+    assert.equal(report.errorCount, 1);
+    const finding = report.findings.find((f) => f.rule === 'duplicate-name');
+    assert.ok(finding);
+    assert.equal(finding.skill, 'same-skill');
+    assert.match(finding.suggestion, /other/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

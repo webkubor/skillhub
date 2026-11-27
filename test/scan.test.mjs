@@ -30,7 +30,29 @@ test('scanSkills scans nested skills, records category and broken files', async 
   assert.equal(result.skills[0].category, 'devops');
   assert.equal(result.skills[0].publish, 'never');
   assert.equal(result.broken.length, 1);
+  assert.equal(result.duplicates.length, 0);
   const report = doctor(result);
   assert.equal(report.ok, false);
   assert.ok(report.problems.some(p => p.includes('broken:')));
+});
+
+test('scanSkills reports same-name skills across roots instead of silently shadowing', async () => {
+  const rootA = await mkdtemp(join(tmpdir(), 'skillhub-dup-a-'));
+  const rootB = await mkdtemp(join(tmpdir(), 'skillhub-dup-b-'));
+  await mkdir(join(rootA, 'skill'), { recursive: true });
+  await mkdir(join(rootB, 'skill'), { recursive: true });
+  await writeFile(join(rootA, 'skill', 'SKILL.md'), '---\nname: same\nversion: 1.0.0\n---\nreal');
+  await writeFile(join(rootB, 'skill', 'SKILL.md'), '---\nname: same\nversion: 9.9.9\n---\nfake');
+
+  const result = await scanSkills({ roots: [rootA, rootB] });
+  assert.equal(result.count, 1);
+  assert.equal(result.duplicates.length, 1);
+  assert.equal(result.duplicates[0].name, 'same');
+  assert.equal(result.duplicates[0].shadowed.length, 1);
+  assert.match(result.duplicates[0].kept, /skillhub-dup-a/);
+  assert.match(result.duplicates[0].shadowed[0], /skillhub-dup-b/);
+
+  const report = doctor(result);
+  assert.equal(report.ok, false);
+  assert.ok(report.problems.some(p => p.startsWith('duplicate-name: same')));
 });

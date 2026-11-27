@@ -107,7 +107,7 @@ export async function createApp(roots: string[], usage?: UsageStore) {
       };
     });
 
-    const auditReport = auditSkills(skills);
+    const auditReport = auditSkills(skills, cached.duplicates);
     const totalUses = stats.reduce((sum, r) => sum + r.uses, 0);
     const totalSuccess = stats.reduce((sum, r) => sum + r.success, 0);
     const uses7d = skills.reduce((sum, s) => sum + s.uses_7d, 0);
@@ -147,6 +147,7 @@ export async function createApp(roots: string[], usage?: UsageStore) {
       agents,
       problems,
       broken: cached.broken,
+      duplicates: cached.duplicates,
       scannedRoots: cached.scannedRoots,
       refreshedAt,
     };

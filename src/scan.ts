@@ -1,6 +1,6 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
 import { basename, join, relative, resolve } from 'node:path';
-import type { Frontmatter, ScanOptions, ScanResult, SkillRecord } from './types.js';
+import type { DuplicateSkill, Frontmatter, ScanOptions, ScanResult, SkillRecord } from './types.js';
 
 const DEFAULT_IGNORE = new Set(['node_modules', '.git', 'dist', 'archive', '.Trash', 'node_modules']);
 
@@ -66,6 +66,9 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
   const skills: SkillRecord[] = [];
   const broken: Array<{ path: string; reason: string }> = [];
   const seen = new Set<string>();
+  // 同名多份不能静默遮蔽：先扫到的生效，其余记进 duplicates 并让 doctor/audit 报错。
+  // 之前这里直接 `continue`，导致假的高版本能无声盖掉真源（2026-11-27 实测复现）。
+  const shadowed = new Map<string, { kept: string; paths: string[]; reals: string[] }>();
   const extraIgnore = options.ignoreDirs ?? [];
 
   for (const rawRoot of options.roots) {
@@ -87,7 +90,34 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
       }
       const fm = parsed.data;
       const name = String(fm.name);
-      if (seen.has(name)) continue;
+      // 同一份真源被软链到多个运行时是正常形态，不算冲突 —— 按 realpath 判定。
+      // 只有「同名但指向不同文件」才是真源不唯一。
+      let real = file;
+      try {
+        real = await realpath(file);
+      } catch { /* 断链按原路径比较 */ }
+      if (seen.has(name)) {
+        const entry = shadowed.get(name);
+        if (entry) {
+          if (!entry.reals.includes(real)) {
+            entry.paths.push(file);
+            entry.reals.push(real);
+          }
+        } else {
+          // 首次撞名：先确认是不是同一个文件。嵌套根（如 ~/dev/agent-skills 与
+          // 其子目录 writing-standard-skills/skills）会让同一文件被走两遍，
+          // realpath 相同就不是冲突，不该记录。
+          const kept = skills.find((s) => s.name === name);
+          let keptReal = kept?.path ?? '';
+          try {
+            keptReal = kept ? await realpath(kept.path) : '';
+          } catch { /* 断链按原路径比较 */ }
+          if (real !== keptReal) {
+            shadowed.set(name, { kept: kept?.path ?? file, paths: [file], reals: [keptReal, real] });
+          }
+        }
+        continue;
+      }
       seen.add(name);
       skills.push({
         name,
@@ -102,12 +132,21 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
     }
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
-  return { count: skills.length, skills, broken, scannedRoots: options.roots };
+  const duplicates: DuplicateSkill[] = [...shadowed.entries()]
+    .map(([name, v]) => {
+      const keptRecord = skills.find((s) => s.name === name);
+      return { name, kept: keptRecord?.path ?? v.kept, shadowed: v.paths };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { count: skills.length, skills, broken, duplicates, scannedRoots: options.roots };
 }
 
 export function doctor(result: ScanResult): { ok: boolean; problems: string[] } {
   const problems: string[] = [];
   for (const b of result.broken) problems.push(`broken: ${basename(b.path)} -> ${b.reason}`);
+  for (const d of result.duplicates) {
+    problems.push(`duplicate-name: ${d.name} -> 采用 ${d.kept}，被遮蔽 ${d.shadowed.join(', ')}`);
+  }
   for (const s of result.skills) {
     if (s.scope === 'company') continue;
     if (s.origin.startsWith('opensource:')) continue;
