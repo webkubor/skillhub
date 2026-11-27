@@ -13,7 +13,7 @@
 ```bash
 npm install && npm --prefix web install
 npm run build:all
-./install.sh                          # 装到 ~/.local/bin/skillhub
+./install.sh                          # 装到 ~/.local/bin/skillhub，并幂等注册 CS 薄入口
 skillhub scan --json
 skillhub doctor
 skillhub audit

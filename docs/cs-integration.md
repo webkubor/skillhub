@@ -15,7 +15,11 @@ CS **不**：复制 skillhub 规则正文、持有 Skill 真源副本、承接�
 
 ## 接入
 
-1. `./install.sh`（独立仓）把入口装到 `~/.local/bin/skillhub`。
+1. `./install.sh`（独立仓）把入口装到 `~/.local/bin/skillhub`，并幂等把
+   `integrations/cs` 追加进 `$CORTEXOS_DIR/var/skill-roots.txt`（默认
+   `~/dev/cs/CortexOS`；不想动 CS 注册表用 `SKILLHUB_SKIP_CS_REGISTER=1`）。
+   该注册表在 `.gitignore` 里、是纯本地状态，所以注册动作放在安装器里，
+   换机跑一次安装即可恢复。
 2. CS 侧插件 `integrations/cs/skillhub-ops/SKILL.md` 只教 Agent 何时调 `skillhub scan/doctor/audit/stats/use/serve`。
 3. 该插件是 CS 侧**唯一**副本：CS 的 `var/skill-roots.txt` 注册根指向
    `~/dev/agent-infra/skillhub/integrations/cs`，`cs skill install` 把 9 个运行时软链到这里。
