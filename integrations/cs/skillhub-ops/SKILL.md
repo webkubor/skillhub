@@ -25,6 +25,7 @@ CS 保持轻量。Skills 的管理真源在**独立仓** `~/dev/agent-infra/skil
 ```bash
 skillhub scan --json              # 清单/分类/来源
 skillhub doctor                   # 格式健康
+skillhub audit                    # 发布前门禁（含 publish: never）
 skillhub stats --json             # 使用统计
 skillhub profile --json           # 每 Skill 版本/生命周期/来源/频次/agent 档案
 skillhub visibility <skill> closed --note "commercial build"  # 本地口径，不改远端

@@ -22,12 +22,13 @@ test('scanSkills scans nested skills, records category and broken files', async 
   const root = await mkdtemp(join(tmpdir(), 'skillhub-test-'));
   await mkdir(join(root, 'devops', 'alpha'), { recursive: true });
   await mkdir(join(root, 'beta'), { recursive: true });
-  await writeFile(join(root, 'devops', 'alpha', 'SKILL.md'), '---\nname: alpha\nversion: 1.0.0\n---\nbody');
+  await writeFile(join(root, 'devops', 'alpha', 'SKILL.md'), '---\nname: alpha\nversion: 1.0.0\npublish: never\n---\nbody');
   await writeFile(join(root, 'beta', 'SKILL.md'), '---\ndescription: broken\n---\nbody');
   const result = await scanSkills({ roots: [root] });
   assert.equal(result.count, 1);
   assert.equal(result.skills[0].name, 'alpha');
   assert.equal(result.skills[0].category, 'devops');
+  assert.equal(result.skills[0].publish, 'never');
   assert.equal(result.broken.length, 1);
   const report = doctor(result);
   assert.equal(report.ok, false);

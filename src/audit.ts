@@ -3,7 +3,7 @@ import type { RepoRelation } from './relations.js';
 import type { VisibilityStatus } from './usage.js';
 
 export type AuditSeverity = 'error' | 'warn';
-export type AuditRule = 'visibility-conflict' | 'secret-leak' | 'missing-version' | 'missing-description';
+export type AuditRule = 'visibility-conflict' | 'secret-leak' | 'missing-version' | 'missing-description' | 'publish-never';
 
 export interface AuditFinding {
   skill: string;
@@ -28,6 +28,7 @@ export interface AuditableSkill {
   path: string;
   visibility: VisibilityStatus;
   relation: RepoRelation;
+  publish?: string | null;
 }
 
 const SECRET_PATTERNS: Array<{ label: string; regex: RegExp }> = [
@@ -41,7 +42,18 @@ export function auditSkills(skills: AuditableSkill[]): AuditReport {
   const findings: AuditFinding[] = [];
 
   for (const s of skills) {
-    // 1. 闭源口径却关联公开仓库
+    // 1. 显式发布禁令：作者声明 publish: never 时，任何打包/分发都必须阻断
+    if (s.publish === 'never') {
+      findings.push({
+        skill: s.name,
+        severity: 'error',
+        rule: 'publish-never',
+        message: 'Skill 显式声明 publish: never，禁止发布或打包分发',
+        suggestion: '先移除个人/内部事实并重新评估口径；未经明确授权不要修改 publish 字段或打包发布。',
+      });
+    }
+
+    // 2. 闭源口径却关联公开仓库
     if (s.visibility === 'closed' && s.relation === 'own-public') {
       findings.push({
         skill: s.name,
@@ -52,7 +64,7 @@ export function auditSkills(skills: AuditableSkill[]): AuditReport {
       });
     }
 
-    // 2. 敏感信息扫描
+    // 3. 敏感信息扫描
     try {
       const content = readFileSync(s.path, 'utf8');
       for (const pat of SECRET_PATTERNS) {
@@ -71,7 +83,7 @@ export function auditSkills(skills: AuditableSkill[]): AuditReport {
       // ignore unreadable file (doctor handles broken files)
     }
 
-    // 3. 缺失版本号（自有非第三方）
+    // 4. 缺失版本号（自有非第三方）
     if (!s.version && !s.origin.startsWith('opensource:')) {
       findings.push({
         skill: s.name,
@@ -82,7 +94,7 @@ export function auditSkills(skills: AuditableSkill[]): AuditReport {
       });
     }
 
-    // 4. 缺失描述
+    // 5. 缺失描述
     if (!s.description || s.description.trim().length < 4) {
       findings.push({
         skill: s.name,

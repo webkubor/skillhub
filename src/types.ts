@@ -15,6 +15,7 @@ export interface SkillRecord {
   scope: string;
   origin: string;
   category: string;
+  publish: string | null;
   path: string;
 }
 

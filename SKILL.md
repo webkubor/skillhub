@@ -39,6 +39,7 @@ skillhub serve --port 4319
 
 - `scan`：Skill 清单、分类、来源分布；`--json` 给网页/程序消费。
 - `doctor`：坏 frontmatter + 自管无版本；有问题退出码 1。
+- `audit [--json]`：发布前门禁——闭源/公开仓冲突、明文密钥、`publish: never`、缺版本号/描述；有阻断项退出码 1。
 - `use <skill> --outcome success|partial|failed [--agent] [--session] [--problem]`：记一次使用；success 不能带 problem。
 - `stats` / `problems`：按 skill 统计次数、成功率、最近使用与问题清单；`--skill` 过滤，`--json` 输出。
 - `frequency [days] [--skill] [--json]`：近 N 天频次与调用 agent 数，默认 7 天。

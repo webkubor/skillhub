@@ -96,6 +96,7 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
         scope: String(fm.scope ?? ''),
         origin: String(fm.origin ?? 'private'),
         category: String(fm.category ?? categoryFromPath(file, root)),
+        publish: fm.publish ? String(fm.publish).replace(/^["']|["']$/g, '') : null,
         path: file,
       });
     }

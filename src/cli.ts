@@ -152,6 +152,7 @@ async function main(): Promise<void> {
         version: s.version,
         origin: s.origin,
         path: s.path,
+        publish: s.publish,
         visibility: profileMap.get(s.name)?.visibility ?? (s.origin.startsWith('opensource:') ? 'open' : 'closed'),
         relation: relationMap.get(s.name)?.relation ?? 'unlinked',
       })));

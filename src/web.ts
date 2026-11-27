@@ -88,6 +88,7 @@ export async function createApp(roots: string[], usage?: UsageStore) {
         origin: s.origin,
         category: s.category,
         path: s.path,
+        publish: s.publish,
         lifecycle: p?.lifecycle ?? 'active',
         lifecycle_note: p?.lifecycle_note ?? '',
         visibility: p?.visibility ?? (s.origin.startsWith('opensource:') ? 'open' : 'closed'),

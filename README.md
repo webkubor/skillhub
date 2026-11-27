@@ -29,7 +29,7 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 |---|---|
 | `scan` | Skill 清单/分类/来源，`--json` |
 | `doctor` | 坏 frontmatter + 自管无版本，退出码 1 表示有问题 |
-| `audit [--json]` | 上架前安全与口径冲突门禁（闭源/公开仓冲突、明文密钥、缺版本号/描述），阻断返回退出码 1 |
+| `audit [--json]` | 上架前安全与口径冲突门禁（闭源/公开仓冲突、明文密钥、`publish: never`、缺版本号/描述），阻断返回退出码 1 |
 | `use <skill> --outcome ...` | 记一次使用（success/partial/failed） |
 | `status [--json]` | gh/glab CLI 登录状态（多 host） |
 | `relations [--json]` | Skill ↔ GitHub/GitLab 仓库关系：git remote/frontmatter 匹配，按当前账户公开仓校准，分自有开源/自有私有/第三方/未关联 |
@@ -54,4 +54,4 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
 
 ## 状态
-`1.0.0`：完成本机 SkillHub 完整闭环——Hono + Zod + SSE 后端、极简左侧栏 Next.js 明暗双色控制台、透明底 SVG 品牌标识、Agent 专属矢量图标、`skillhub audit` 上架前安全门禁、本地 Git 版本历史与 Diff、`skillhub ui` 终端实时遥控网页；`npm test` 15/15 全部通过。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或外部商品配置。CS 不参与管理，也不作为迁移源或路线图依据。
+`1.0.0`：完成本机 SkillHub 完整闭环——Hono + Zod + SSE 后端、极简左侧栏 Next.js 明暗双色控制台、透明底 SVG 品牌标识、Agent 专属矢量图标、`skillhub audit` 上架前安全门禁（含 `publish: never`）、本地 Git 版本历史与 Diff、`skillhub ui` 终端实时遥控网页；`npm test` 全部通过。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或外部商品配置。CS 不参与管理，也不作为迁移源或路线图依据。

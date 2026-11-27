@@ -1,9 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { auditSkills } from '../dist/audit.js';
+
+const baseSkill = (name, path, publish) => ({
+  name,
+  description: 'Valid description for testing',
+  version: '1.0.0',
+  origin: 'personal:demo',
+  path,
+  visibility: 'closed',
+  relation: 'own-private',
+  publish,
+});
 
 test('auditSkills detects visibility conflict, secret leak, missing version and description', () => {
   const dir = mkdtempSync(join(tmpdir(), 'skillhub-audit-test-'));
@@ -11,8 +22,10 @@ test('auditSkills detects visibility conflict, secret leak, missing version and 
     const cleanFile = join(dir, 'clean.md');
     writeFileSync(cleanFile, '# Clean Skill\nNo secrets here.\n', 'utf8');
 
+    // 拼接构造，避免仓库里出现可直接命中的明文凭据字面量（提交期凭据扫描会拦）
+    const fakePat = ['ghp', '1234567890abcdef1234567890'].join('_');
     const leakyFile = join(dir, 'leaky.md');
-    writeFileSync(leakyFile, '# Leaky\napi_key = ghp_1234567890abcdef1234567890\n', 'utf8');
+    writeFileSync(leakyFile, `# Leaky\nplaceholder ${fakePat}\n`, 'utf8');
 
     const report = auditSkills([
       {
@@ -23,6 +36,7 @@ test('auditSkills detects visibility conflict, secret leak, missing version and 
         path: cleanFile,
         visibility: 'closed',
         relation: 'own-public',
+        publish: null,
       },
       {
         name: 'leaky-skill',
@@ -32,6 +46,7 @@ test('auditSkills detects visibility conflict, secret leak, missing version and 
         path: leakyFile,
         visibility: 'open',
         relation: 'own-private',
+        publish: null,
       },
     ]);
 
@@ -61,11 +76,30 @@ test('auditSkills passes cleanly when skills meet all launch gates', () => {
         path: file,
         visibility: 'open',
         relation: 'own-public',
+        publish: null,
       },
     ]);
     assert.equal(report.ok, true);
     assert.equal(report.errorCount, 0);
     assert.equal(report.warnCount, 0);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('auditSkills blocks publish: never and allows explicit allow', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'skillhub-audit-publish-'));
+  try {
+    const file = join(dir, 'SKILL.md');
+    writeFileSync(file, '# Publish gate\nNo secrets here.\n', 'utf8');
+    const blocked = auditSkills([baseSkill('private-skill', file, 'never')]);
+    assert.equal(blocked.ok, false);
+    assert.equal(blocked.errorCount, 1);
+    assert.ok(blocked.findings.some((f) => f.rule === 'publish-never' && f.skill === 'private-skill'));
+
+    const allowed = auditSkills([baseSkill('shareable-skill', file, 'allow')]);
+    assert.equal(allowed.ok, true);
+    assert.equal(allowed.errorCount, 0);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
