@@ -10,13 +10,20 @@ set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_DIR="${SKILLHUB_INSTALL_DIR:-$HOME/.local/bin}"
-mkdir -p "$INSTALL_DIR"
 
 if [ ! -f "$REPO_DIR/dist/cli.js" ]; then
   echo "dist/cli.js not found; run: npm install && npm run build" >&2
   exit 1
 fi
 
+# --help 加载真实 CLI 的模块，但不会打开统计库。已有依赖能启动就不重装。
+if ! node "$REPO_DIR/dist/cli.js" --help >/dev/null; then
+  echo "CLI startup failed; restoring dependencies from package-lock.json with npm ci" >&2
+  (cd "$REPO_DIR" && npm ci)
+  node "$REPO_DIR/dist/cli.js" --help >/dev/null
+fi
+
+mkdir -p "$INSTALL_DIR"
 cat > "$INSTALL_DIR/skillhub" <<EOF
 #!/usr/bin/env bash
 exec node "$REPO_DIR/dist/cli.js" "\$@"
