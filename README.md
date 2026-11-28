@@ -8,7 +8,7 @@
 
 ## 快速开始
 
-准备好 Git 和 Node.js 24，或使用 CI 所测的 Node.js 22 最新补丁版。在 macOS 或 Linux 终端运行：
+准备好 Git，推荐使用 Node.js 24。最低支持 Node.js 22.13.0；使用 23.x 时需要 23.4.0 或更高版本，以便直接使用内置 SQLite。在 macOS 或 Linux 终端运行：
 
 ```bash
 git clone https://github.com/webkubor/skillhub.git
