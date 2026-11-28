@@ -59,3 +59,9 @@ skillhub serve --port 4319
 - [SkillPay 合同审阅](docs/skillpay-contract-notes.md)：售卖自有 SKILL 的边界、开源/闭源切换的法律含义与上架清单。
 - [线上分发平台清单](docs/distribution-platforms.md)：腾讯云 SkillHub / 支付宝 SkillPay，仅登记未接入。
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
+
+### 自动记录技能读取
+
+有本机 SkillHub CLI 后，运行 `node integrations/agent-hooks/install.mjs` 注册 Codex 与 Claude Code 的成功工具回执钩子。新会话加载配置。CS 在 `cs skill show` 成功输出正文后由 CLI 转发读取事件。直接文件读取需要工具回执含可核对的正文。扫描、列目录、仅出现在技能清单中的条目不会产生事件。
+
+`skillhub reads --json` 显示读取。执行有明确验收命令的技能时，用 `skillhub run <技能名> -- <命令> [参数...]` 承载该步骤，命令的退出状态生成单独的结果，`skillhub stats --json` 查看。普通会话结束不推定技能结果。控制台的「调用分析」分别显示最近读取和执行结果。

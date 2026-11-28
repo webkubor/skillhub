@@ -10,6 +10,14 @@ export interface UseEvent {
   problem?: string;
 }
 
+export interface ReadEvent {
+  skill: string;
+  agent: string;
+  session: string;
+  source: string;
+  eventKey?: string;
+}
+
 export interface UsageRow {
   id: string;
   skill: string;
@@ -71,6 +79,17 @@ export class UsageStore {
   constructor(path: string = defaultDbPath()) {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
+    this.db.exec('PRAGMA busy_timeout = 2000');
+    this.db.exec(`CREATE TABLE IF NOT EXISTS skill_reads (
+      id INTEGER PRIMARY KEY,
+      skill TEXT NOT NULL,
+      agent TEXT NOT NULL,
+      session TEXT NOT NULL,
+      source TEXT NOT NULL,
+      event_key TEXT UNIQUE,
+      created_at TEXT NOT NULL
+    )`);
+    this.db.exec('CREATE INDEX IF NOT EXISTS idx_skill_reads_skill ON skill_reads(skill, id DESC)');
     this.db.exec(`CREATE TABLE IF NOT EXISTS usage (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       skill TEXT NOT NULL,
@@ -138,6 +157,19 @@ export class UsageStore {
       ON CONFLICT(skill) DO UPDATE SET status=excluded.status, note=excluded.note, updated_at=excluded.updated_at`)
       .run(skill, status, note, new Date().toISOString());
     return this.visibility(skill)[0];
+  }
+
+  recordRead(event: ReadEvent): void {
+    if (!event.skill) throw new Error('skill is required');
+    this.db.prepare(`INSERT INTO skill_reads (skill, agent, session, source, event_key, created_at)
+      VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(event_key) DO NOTHING`)
+      .run(event.skill, event.agent, event.session, event.source, event.eventKey ?? null, new Date().toISOString());
+  }
+
+  reads(skill?: string, session?: string) {
+    return this.db.prepare(`SELECT skill, agent, session, source, created_at FROM skill_reads
+      WHERE (? IS NULL OR skill = ?) AND (? IS NULL OR session = ?) ORDER BY id DESC LIMIT 100`)
+      .all(skill ?? null, skill ?? null, session ?? null, session ?? null);
   }
 
   record(event: UseEvent): void {

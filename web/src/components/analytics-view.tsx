@@ -1,7 +1,6 @@
 'use client';
 
-import { Check, Copy } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import {
   Bar,
   BarChart,
@@ -11,24 +10,24 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { AgentStatRow, ProblemRow, SkillItem, StatsRow } from '@/lib/types';
+import type { AgentStatRow, ProblemRow, SkillItem, SkillRead, StatsRow } from '@/lib/types';
 import { formatPercent, formatShortTime } from '@/lib/utils';
 import { AgentBadge } from './ui/agent-badge';
-import { Badge, Button, Card } from './ui/primitives';
+import { Badge, Card } from './ui/primitives';
 
 export function AnalyticsView({
   skills,
   stats,
   agents,
   problems,
+  reads,
 }: {
   skills: SkillItem[];
   stats: StatsRow[];
   agents: AgentStatRow[];
   problems: ProblemRow[];
+  reads: SkillRead[];
 }) {
-  const [copied, setCopied] = useState(false);
-
   const topSkills = useMemo(
     () =>
       [...skills]
@@ -58,49 +57,26 @@ export function AnalyticsView({
     return [...map.values()].sort((a, b) => b.uses - a.uses).slice(0, 10);
   }, [agents]);
 
-  if (stats.length === 0) {
-    const sampleSkill = skills[0]?.name ?? 'skillhub';
-    const sampleCmd = `skillhub use ${sampleSkill} --outcome success --agent claude`;
-    return (
-      <Card className="p-8 text-center">
-        <div className="mx-auto flex max-w-lg flex-col items-center">
-          <div className="flex flex-wrap justify-center gap-2">
-            {['claude', 'codex', 'gemini', 'cursor', 'dsh'].map((a) => (
-              <AgentBadge key={a} agent={a} compact />
-            ))}
-          </div>
-          <p className="mt-4 text-sm font-semibold text-[var(--fg)]">暂无调用遥测数据</p>
-          <p className="mt-1.5 text-xs leading-relaxed text-[var(--fg-muted)]">
-            在任意 Agent 完成 Skill 调用后执行下面一行命令，此处将自动展示高频排行、Agent 图标分布与成功率趋势。
-          </p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
-            <code className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-3 py-1.5 font-mono text-xs text-[var(--info)]">
-              {sampleCmd}
-            </code>
-            <Button
-              variant="default"
-              size="sm"
-              onClick={async () => {
-                try {
-                  await navigator.clipboard.writeText(sampleCmd);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1600);
-                } catch {
-                  // ignore
-                }
-              }}
-            >
-              {copied ? <Check className="h-3 w-3 text-[var(--ok)]" /> : <Copy className="h-3 w-3" />}
-              <span>{copied ? '已复制' : '复制测试命令'}</span>
-            </Button>
-          </div>
-        </div>
-      </Card>
-    );
-  }
-
   return (
     <div className="space-y-5">
+      <Card className="space-y-3 p-4">
+        <h3 className="text-sm font-semibold">最近读取</h3>
+        {reads.length === 0 ? (
+          <p className="text-xs text-[var(--fg-muted)]">暂无正文读取记录</p>
+        ) : (
+          <ul className="max-h-64 divide-y divide-[var(--border)] overflow-auto">
+            {reads.map((read, index) => (
+              <li key={index} className="flex flex-wrap items-center gap-x-3 gap-y-1 py-2 text-xs">
+                <span className="font-medium">{read.skill}</span>
+                <span className="text-[var(--fg-muted)]">{read.source === 'cs-show' ? 'CS' : read.agent}</span>
+                <time className="ml-auto text-[var(--fg-muted)]" dateTime={read.created_at}>{formatShortTime(read.created_at)}</time>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+      <h3 className="text-sm font-semibold">执行结果</h3>
+      {stats.length === 0 && <p className="text-xs text-[var(--fg-muted)]">暂无执行结果</p>}
       {/* Agent Brand Strip */}
       {agentTotals.length > 0 && (
         <Card className="flex flex-wrap items-center gap-2.5 p-3.5">

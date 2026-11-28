@@ -98,6 +98,7 @@ export function Dashboard() {
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['overview'],
     queryFn: fetchOverview,
+    refetchInterval: tab === 'analytics' ? 10_000 : false,
   });
 
   // Real-time CLI -> Web SSE Control Channel
@@ -680,6 +681,7 @@ export function Dashboard() {
               <AnalyticsView
                 skills={data.skills}
                 stats={data.stats}
+                reads={data.reads}
                 agents={data.agents}
                 problems={data.problems}
               />

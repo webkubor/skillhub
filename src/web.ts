@@ -150,6 +150,7 @@ export async function createApp(
       skills,
       relations,
       stats,
+      reads: store.reads(),
       agents,
       problems,
       broken: cached.broken,
@@ -171,6 +172,7 @@ export async function createApp(
   app.get('/api/audit', (c) => c.json(buildOverview().audit));
   app.get('/api/scan', (c) => c.json(cached));
   app.get('/api/doctor', (c) => c.json(doctor(cached)));
+  app.get('/api/reads', (c) => c.json(store.reads(c.req.query('skill'), c.req.query('session'))));
   app.get('/api/stats', (c) => c.json(store.stats()));
   app.get('/api/status', (c) => c.json(checkCliStatus()));
   app.get('/api/relations', (c) => c.json({ account, relations }));

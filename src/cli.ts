@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import { agentRead, sessionID } from './agent-read.js';
 import { createServer } from 'node:http';
 import { auditSkills } from './audit.js';
 import { sendWebControl } from './cli-control.js';
@@ -18,6 +21,8 @@ Usage:
   skillhub doctor [--root <dir>] ...
   skillhub audit [--root <dir>] ... [--json]            # 上架前安全与口径冲突门禁（存在阻断返回退出码 1）
   skillhub use <skill> --outcome success|partial|failed [--agent <id>] [--session <id>] [--problem <text>]
+  skillhub reads [--skill <name>] [--session <id>] [--json]
+  skillhub run <skill> -- <command> [args...]           # record the actual command outcome
   skillhub stats [--skill <name>] [--json]
   skillhub problems [--skill <name>] [--json]
   skillhub frequency [days] [--skill <name>] [--json]   # 近 N 天频次（默认 7）
@@ -112,6 +117,29 @@ async function serve(opts: Opts): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  const [command, name, separator, program, ...args] = process.argv.slice(2);
+  if (command === 'run') {
+    if (!name || separator !== '--' || !program) throw new Error('usage: skillhub run <skill> -- <command> [args...]');
+    const child = spawnSync(program, args, { stdio: 'inherit' });
+    if (child.error) throw child.error;
+    const outcome = child.status === 0 ? 'success' : 'failed';
+    const store = new UsageStore();
+    try {
+      store.record({ skill: name, outcome, agent: process.env.CS_AGENT ?? '', session: sessionID() });
+    } finally {
+      store.close();
+    }
+    process.exitCode = child.status ?? 1;
+    await sendWebControl(4319, { action: 'refresh', message: `执行结果：${name} (${outcome})` });
+    return;
+  }
+  if (command === '_hook') {
+    const event = agentRead(JSON.parse(readFileSync(0, 'utf8')), name);
+    if (!event) return;
+    const store = new UsageStore();
+    try { store.recordRead(event); } finally { store.close(); }
+    return;
+  }
   const opts = parseArgs(process.argv.slice(2));
   if (opts.command === 'help' || opts.command === '--help' || opts.command === '-h') {
     process.stdout.write(HELP);
@@ -204,6 +232,19 @@ async function main(): Promise<void> {
       store.close();
     }
     await sendWebControl(opts.port, { action: 'refresh', message: `记录调用：${skill} (${outcome})` });
+    return;
+  }
+  if (opts.command === 'reads' || opts.command === '_record-read') {
+    const store = new UsageStore();
+    try {
+      if (opts.command === '_record-read') {
+        store.recordRead({ skill: opts.positionals[0], agent: opts.flags.agent ?? '', session: opts.flags.session ?? '', source: 'cs-show' });
+      } else {
+        const rows = store.reads(opts.flags.skill, opts.flags.session);
+        process.stdout.write(opts.json ? JSON.stringify(rows, null, 2) + '\n' :
+          rows.map(r => [r.created_at, r.skill, r.source, r.agent, r.session].join('\t')).join('\n') + '\n');
+      }
+    } finally { store.close(); }
     return;
   }
   if (opts.command === 'stats') {

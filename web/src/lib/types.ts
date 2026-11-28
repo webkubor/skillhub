@@ -116,6 +116,14 @@ export interface OverviewSummary {
   unlinkedCount: number;
 }
 
+export interface SkillRead {
+  skill: string;
+  agent: string;
+  session: string;
+  source: string;
+  created_at: string;
+}
+
 export interface OverviewResponse {
   summary: OverviewSummary;
   account: string | null;
@@ -124,6 +132,7 @@ export interface OverviewResponse {
   audit: AuditReport;
   skills: SkillItem[];
   stats: StatsRow[];
+  reads: SkillRead[];
   agents: AgentStatRow[];
   problems: ProblemRow[];
   broken: Array<{ path: string; reason: string }>;
