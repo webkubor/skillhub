@@ -95,6 +95,16 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
     const files: string[] = [];
     await walk(root, extraIgnore, files);
     for (const file of files) {
+      // Check canonical paths so an installed symlink cannot expose a fixture or archive.
+      let real = file;
+      try {
+        real = await realpath(file);
+      } catch { /* Report unreadable files below. */ }
+      if (real.split(sep).includes('archive') || real.includes(sep + 'tests' + sep + 'fixtures' + sep) ||
+          excludePrefixes.some(p => real === p || real.startsWith(p + sep))) {
+        excluded.push(file);
+        continue;
+      }
       let text: string;
       try {
         text = await readFile(file, 'utf8');
@@ -109,18 +119,7 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
       }
       const fm = parsed.data;
       const name = String(fm.name);
-      // 同一份真源被软链到多个运行时是正常形态，不算冲突 —— 按 realpath 判定。
-      // 只有「同名但指向不同文件」才是真源不唯一。
-      let real = file;
-      try {
-        real = await realpath(file);
-      } catch { /* 断链按原路径比较 */ }
-      // 生成物 / 内嵌副本：带 SKILL.md 但不是真源（路由缓存、编进二进制的 guide 等）。
-      // 不排除的话它们会以「同名」身份制造假冲突，把真源问题埋掉。
-      if (excludePrefixes.some(p => real === p || real.startsWith(p + sep))) {
-        excluded.push(file);
-        continue;
-      }
+      if (fm.discovery === 'explicit' && name !== options.explicitSkill) continue;
       if (seen.has(name)) {
         const entry = shadowed.get(name);
         if (entry) {

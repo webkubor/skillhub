@@ -76,9 +76,10 @@ function parseArgs(argv: string[]): Opts {
   return opts;
 }
 
-async function loadResult(roots: string[]): Promise<ScanResult> {
+async function loadResult(roots: string[], explicitSkill?: string): Promise<ScanResult> {
   return scanSkills({
     roots: roots.length ? roots : DEFAULT_ROOTS,
+    explicitSkill,
     excludePrefixes: DEFAULT_EXCLUDES,
     allowedDuplicates: DEFAULT_ALLOWED_DUPLICATES,
   });
@@ -265,7 +266,7 @@ async function main(): Promise<void> {
     return;
   }
   if (opts.command === 'profile') {
-    const result = await loadResult(opts.roots);
+    const result = await loadResult(opts.roots, opts.positionals[0] ?? opts.flags.skill);
     const store = new UsageStore();
     try {
       let profiles = buildProfiles(result.skills, store);
