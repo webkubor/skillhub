@@ -21,6 +21,7 @@ export interface SkillRecord {
 
 export interface ScanOptions {
   roots: string[];
+  explicitSkill?: string;
   ignoreDirs?: string[];
   /**
    * 真实路径前缀黑名单（按 realpath 判定）。用于排除「有 SKILL.md 但不是真源」的目录：
