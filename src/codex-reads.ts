@@ -33,13 +33,21 @@ function inputFor(name: string, input: string) {
   } catch { /* Unknown tool argument shape. */ }
 }
 
-function readBatch(path: string, offset: number) {
+function readBatch(path: string, offset: number): { text: string; skipped: number } {
   const fd = openSync(path, 'r');
   try {
     const bytes = Buffer.allocUnsafe(batchSize);
     const length = readSync(fd, bytes, 0, batchSize, offset);
     const complete = bytes.subarray(0, length).lastIndexOf(10);
-    return complete >= 0 ? bytes.subarray(0, complete + 1).toString('utf8') : '';
+    if (complete >= 0) return { text: bytes.subarray(0, complete + 1).toString('utf8'), skipped: 0 };
+    // An oversized receipt cannot be attributed safely, but must not hide later receipts.
+    for (let skipped = length; length === batchSize; skipped += batchSize) {
+      const next = readSync(fd, bytes, 0, batchSize, offset + skipped);
+      const end = bytes.subarray(0, next).indexOf(10);
+      if (end >= 0) return { text: '', skipped: skipped + end + 1 };
+      if (next < batchSize) break;
+    }
+    return { text: '', skipped: 0 };
   } finally { closeSync(fd); }
 }
 
@@ -63,15 +71,19 @@ export function collectCodexReads(store: UsageStore): void {
       const calls = new Map<string, { offset: number; command: string; workdir?: string }>();
 
       while (offset < stat.size) {
-        const batch = readBatch(path, offset);
-        if (!batch) break;
-        for (const line of batch.slice(0, -1).split('\n')) {
+        const { text, skipped } = readBatch(path, offset);
+        if (skipped) {
+          offset += skipped;
+          continue;
+        }
+        if (!text) break;
+        for (const line of text.slice(0, -1).split('\n')) {
           const rowOffset = offset;
           offset += Buffer.byteLength(line) + 1;
           try {
             const row = JSON.parse(line);
             if (row.type === 'session_meta') cwd = row.payload?.cwd ?? '';
-            if (row.type !== 'response_item' || row.timestamp < since) continue;
+            if (row.type !== 'response_item' || typeof row.timestamp !== 'string' || row.timestamp < since) continue;
             const p = row.payload;
             if (!p?.call_id) continue;
             if (p.type === 'function_call' || p.type === 'custom_tool_call') {

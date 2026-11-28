@@ -26,12 +26,16 @@ CS 保持轻量。Skills 的管理真源在**独立仓** `~/dev/agent-infra/skil
 skillhub scan --json              # 清单/分类/来源
 skillhub doctor                   # 格式健康
 skillhub audit                    # 发布前门禁（含 publish: never）
-skillhub stats --json             # 使用统计
+skillhub reads --json             # 已确认正文读取（可按 --skill / --session 查询）
+skillhub stats --json             # 执行结果统计，与读取分开
 skillhub profile --json           # 每 Skill 版本/生命周期/来源/频次/agent 档案
 skillhub visibility <skill> closed --note "commercial build"  # 本地口径，不改远端
-skillhub use <skill> --outcome success|partial|failed   # 记一次使用
+skillhub run <skill> -- <command>  # 按实际命令退出状态记结果
+skillhub use <skill> --outcome success|partial|failed   # 兼容已有人工结果登记
 skillhub serve --port 4319        # 只读网页
 ```
+
+自动读取覆盖 CS 的 `cs skill show`、Codex 的本地工具回执和 Claude Code 的成功读取钩子。扫描不产生读取事件。
 
 首次需要 `skillhub install`（独立仓 `install.sh`）把 CLI 装到 `~/.local/bin`。
 

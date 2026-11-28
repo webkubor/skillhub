@@ -184,7 +184,7 @@ export class UsageStore {
 
   reads(skill?: string, session?: string) {
     return this.db.prepare(`SELECT skill, agent, session, source, created_at FROM skill_reads
-      WHERE (? IS NULL OR skill = ?) AND (? IS NULL OR session = ?) ORDER BY id DESC LIMIT 100`)
+      WHERE (? IS NULL OR skill = ?) AND (? IS NULL OR session = ?) ORDER BY created_at DESC, id DESC LIMIT 100`)
       .all(skill ?? null, skill ?? null, session ?? null, session ?? null);
   }
 
