@@ -4,7 +4,7 @@
 
 [从源码安装](#快速开始) · [查看技能档案](#技能档案) · [CLI 命令](#命令) · [![CI](https://github.com/webkubor/skillhub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/webkubor/skillhub/actions/workflows/ci.yml)
 
-![SkillHub 本地控制台，使用示例数据展示技能清单](assets/screenshots/console.png)
+![SkillHub 调用统计页，使用示例数据展示技能使用频次与 Agent 分布](assets/screenshots/console.png)
 
 ## 快速开始
 
