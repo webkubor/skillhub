@@ -3,6 +3,15 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
+const data = process.env.SKILLHUB_DATA_DIR ?? join(homedir(), '.local', 'state', 'skillhub');
+mkdirSync(data, { recursive: true, mode: 0o700 });
+try {
+  writeFileSync(join(data, 'codex-reads-since'), new Date().toISOString() + '\n', { mode: 0o600, flag: 'wx' });
+  console.log('codex: 已启用后续工具回执采集');
+} catch (error) {
+  if (error.code !== 'EEXIST') throw error;
+}
+
 const launcher = process.argv[2] ?? join(homedir(), '.local', 'bin', 'skillhub');
 const quote = (value) => "'" + value.replaceAll("'", "'\\''") + "'";
 for (const [agent, file, matcher] of [
@@ -21,11 +30,19 @@ for (const [agent, file, matcher] of [
   config.hooks ??= {};
   const hooks = config.hooks.PostToolUse ??= [];
   const command = quote(launcher) + ' _hook ' + agent;
-  if (hooks.some(group => group.hooks.some(hook => hook.command === command))) continue;
-  hooks.push({ matcher, hooks: [{ type: 'command', command, timeout: 5 }] });
+  const hasHook = hooks.some(group => group.hooks.some(hook => hook.command === command));
+  if (agent === 'codex') {
+    if (!hasHook) continue;
+    config.hooks.PostToolUse = hooks.map(group => ({
+      ...group, hooks: group.hooks.filter(hook => hook.command !== command),
+    })).filter(group => group.hooks.length > 0);
+  } else {
+    if (hasHook) continue;
+    hooks.push({ matcher, hooks: [{ type: 'command', command, timeout: 5 }] });
+  }
   mkdirSync(dirname(file), { recursive: true });
   const staged = file + '.' + randomUUID() + '.tmp';
   writeFileSync(staged, JSON.stringify(config, null, 2) + '\n', { mode, flag: 'wx' });
   renameSync(staged, file);
-  console.log(agent + ': PostToolUse 已注册');
+  if (agent === 'claude') console.log('claude: PostToolUse 已注册');
 }

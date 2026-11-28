@@ -23,12 +23,12 @@ export function agentRead(receipt: HookReceipt, agent: string) {
   let file = receipt.tool_name === 'Read' ? input?.file_path : undefined;
   if (['Bash', 'exec_command', 'shell_command'].includes(receipt.tool_name ?? '') && input?.command) {
     // Only accept a standalone, literal read. Lists, compound commands and scans are ambiguous.
-    const match = /^(?:cat|head|tail)\s+(?:(?:-n\s+\d+|--)\s+)*(?:"([^"\x24`\n]+)"|'([^'\n]+)'|([\w./~:@+-]+))\s*$/.exec(input.command);
+    const match = /^(?:cat|head|tail|rtk\s+read)\s+(?:(?:-n\s+\d+|--)\s+)*(?:"([^"\x24`\n]+)"|'([^'\n]+)'|([\w./~:@+-]+))\s*$/.exec(input.command);
     file = match?.[1] ?? match?.[2] ?? match?.[3];
   }
   if (!file || basename(file) !== 'SKILL.md') return;
   const output = typeof receipt.tool_response === 'string' ? receipt.tool_response : JSON.stringify(receipt.tool_response ?? '');
-  if (/Process exited with code [1-9]/.test(output)) return;
+  if (/Process exited with code [1-9]|"exit_code"\s*:\s*[1-9]/.test(output.replaceAll('\\"', '"'))) return;
   const path = resolve(input?.workdir ?? receipt.cwd ?? '.', file.replace(/^~\//, (process.env.HOME ?? '') + '/'));
   let source: string;
   try {

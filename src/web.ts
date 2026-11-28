@@ -1,3 +1,4 @@
+import { collectCodexReads } from './codex-reads.js';
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -168,11 +169,17 @@ export async function createApp(
     return { ok: true, count: cached.count, refreshedAt };
   };
 
-  app.get('/api/overview', (c) => c.json(buildOverview()));
+  app.get('/api/overview', (c) => {
+    collectCodexReads(store);
+    return c.json(buildOverview());
+  });
   app.get('/api/audit', (c) => c.json(buildOverview().audit));
   app.get('/api/scan', (c) => c.json(cached));
   app.get('/api/doctor', (c) => c.json(doctor(cached)));
-  app.get('/api/reads', (c) => c.json(store.reads(c.req.query('skill'), c.req.query('session'))));
+  app.get('/api/reads', (c) => {
+    collectCodexReads(store);
+    return c.json(store.reads(c.req.query('skill'), c.req.query('session')));
+  });
   app.get('/api/stats', (c) => c.json(store.stats()));
   app.get('/api/status', (c) => c.json(checkCliStatus()));
   app.get('/api/relations', (c) => c.json({ account, relations }));

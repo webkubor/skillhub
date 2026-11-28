@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
+import { collectCodexReads } from './codex-reads.js';
 import { agentRead, sessionID } from './agent-read.js';
 import { createServer } from 'node:http';
 import { auditSkills } from './audit.js';
@@ -240,6 +241,7 @@ async function main(): Promise<void> {
       if (opts.command === '_record-read') {
         store.recordRead({ skill: opts.positionals[0], agent: opts.flags.agent ?? '', session: opts.flags.session ?? '', source: 'cs-show' });
       } else {
+        collectCodexReads(store);
         const rows = store.reads(opts.flags.skill, opts.flags.session);
         process.stdout.write(opts.json ? JSON.stringify(rows, null, 2) + '\n' :
           rows.map(r => [r.created_at, r.skill, r.source, r.agent, r.session].join('\t')).join('\n') + '\n');

@@ -16,6 +16,7 @@ export interface ReadEvent {
   session: string;
   source: string;
   eventKey?: string;
+  createdAt?: string;
 }
 
 export interface UsageRow {
@@ -68,15 +69,14 @@ export interface AgentStatRow {
   last_used_at: string;
 }
 
-function defaultDbPath(): string {
-  const base = process.env.SKILLHUB_DATA_DIR ?? resolve(process.env.HOME ?? '.', '.local/state/skillhub');
-  return resolve(base, 'usage.sqlite');
+export function dataDirectory(): string {
+  return process.env.SKILLHUB_DATA_DIR ?? resolve(process.env.HOME ?? '.', '.local/state/skillhub');
 }
 
 export class UsageStore {
   private readonly db: DatabaseSync;
 
-  constructor(path: string = defaultDbPath()) {
+  constructor(path: string = resolve(dataDirectory(), 'usage.sqlite')) {
     mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec('PRAGMA busy_timeout = 2000');
@@ -88,6 +88,11 @@ export class UsageStore {
       source TEXT NOT NULL,
       event_key TEXT UNIQUE,
       created_at TEXT NOT NULL
+    )`);
+    this.db.exec(`CREATE TABLE IF NOT EXISTS codex_read_cursor (
+      session TEXT PRIMARY KEY,
+      offset INTEGER NOT NULL,
+      cwd TEXT NOT NULL
     )`);
     this.db.exec('CREATE INDEX IF NOT EXISTS idx_skill_reads_skill ON skill_reads(skill, id DESC)');
     this.db.exec(`CREATE TABLE IF NOT EXISTS usage (
@@ -163,7 +168,18 @@ export class UsageStore {
     if (!event.skill) throw new Error('skill is required');
     this.db.prepare(`INSERT INTO skill_reads (skill, agent, session, source, event_key, created_at)
       VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT(event_key) DO NOTHING`)
-      .run(event.skill, event.agent, event.session, event.source, event.eventKey ?? null, new Date().toISOString());
+      .run(event.skill, event.agent, event.session, event.source, event.eventKey ?? null, event.createdAt ?? new Date().toISOString());
+  }
+
+  codexCursor(session: string): { offset: number; cwd: string } {
+    const row = this.db.prepare('SELECT offset, cwd FROM codex_read_cursor WHERE session = ?').get(session);
+    return { offset: Number(row?.offset ?? 0), cwd: String(row?.cwd ?? '') };
+  }
+
+  setCodexCursor(session: string, offset: number, cwd: string): void {
+    this.db.prepare(`INSERT INTO codex_read_cursor (session, offset, cwd) VALUES (?, ?, ?)
+      ON CONFLICT(session) DO UPDATE SET offset = excluded.offset, cwd = excluded.cwd
+      WHERE excluded.offset > codex_read_cursor.offset`).run(session, offset, cwd);
   }
 
   reads(skill?: string, session?: string) {

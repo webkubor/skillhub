@@ -62,6 +62,6 @@ skillhub serve --port 4319
 
 ### 自动记录技能读取
 
-有本机 SkillHub CLI 后，运行 `node integrations/agent-hooks/install.mjs` 注册 Codex 与 Claude Code 的成功工具回执钩子。新会话加载配置。CS 在 `cs skill show` 成功输出正文后由 CLI 转发读取事件。直接文件读取需要工具回执含可核对的正文。扫描、列目录、仅出现在技能清单中的条目不会产生事件。
+有本机 SkillHub CLI 后，运行 `node integrations/agent-hooks/install.mjs` 注册 Claude Code 的成功工具回执钩子，并启用 Codex 本地会话回执采集。Claude Code 在新会话加载配置，Codex 在查看读取记录或刷新控制台时增量采集启用之后的新回执。CS 在 `cs skill show` 成功输出正文后由 CLI 转发读取事件。直接文件读取需要工具回执含可核对的正文。读取表仅保留技能名、来源、会话、时间和去重键，不复制正文。扫描、列目录、仅出现在技能清单中的条目不会产生事件。
 
 `skillhub reads --json` 显示读取。执行有明确验收命令的技能时，用 `skillhub run <技能名> -- <命令> [参数...]` 承载该步骤，命令的退出状态生成单独的结果，`skillhub stats --json` 查看。普通会话结束不推定技能结果。控制台的「调用分析」分别显示最近读取和执行结果。
