@@ -1,5 +1,5 @@
 import { readdir, readFile, realpath, stat } from 'node:fs/promises';
-import { basename, join, relative, resolve } from 'node:path';
+import { basename, join, relative, resolve, sep } from 'node:path';
 import type { DuplicateSkill, Frontmatter, ScanOptions, ScanResult, SkillRecord } from './types.js';
 
 const DEFAULT_IGNORE = new Set(['node_modules', '.git', 'dist', 'archive', '.Trash', 'node_modules']);
@@ -35,8 +35,25 @@ function categoryFromPath(path: string, root: string): string {
   return 'uncategorized';
 }
 
-async function walk(root: string, extraIgnore: string[], out: string[]): Promise<void> {
-  let entries;
+/**
+ * 排除前缀必须也走 realpath：被比较的是文件的 realpath，而 macOS 上 /var 是
+ * /private/var 的软链、临时目录、以及 ~/.config 之类的真实路径都可能不同形。
+ * 只 resolve 不 realpath 会永远匹配不上，排除静默失效。
+ */
+async function resolveExcludes(prefixes: string[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const raw of prefixes) {
+    const expanded = resolve(raw.replace(/^~/, process.env.HOME ?? ''));
+    try {
+      out.push(await realpath(expanded));
+    } catch {
+      out.push(expanded); // 不存在的前缀保留原形，不至于崩
+    }
+  }
+  return out;
+}
+
+async function walk(root: string, extraIgnore: string[], out: string[]): Promise<void> {  let entries;
   try {
     entries = await readdir(root, { withFileTypes: true });
   } catch {
@@ -69,7 +86,9 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
   // 同名多份不能静默遮蔽：先扫到的生效，其余记进 duplicates 并让 doctor/audit 报错。
   // 之前这里直接 `continue`，导致假的高版本能无声盖掉真源（2026-11-27 实测复现）。
   const shadowed = new Map<string, { kept: string; paths: string[]; reals: string[] }>();
+  const excluded: string[] = [];
   const extraIgnore = options.ignoreDirs ?? [];
+  const excludePrefixes = await resolveExcludes(options.excludePrefixes ?? []);
 
   for (const rawRoot of options.roots) {
     const root = resolve(rawRoot.replace(/^~/, process.env.HOME ?? ''));
@@ -96,6 +115,12 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
       try {
         real = await realpath(file);
       } catch { /* 断链按原路径比较 */ }
+      // 生成物 / 内嵌副本：带 SKILL.md 但不是真源（路由缓存、编进二进制的 guide 等）。
+      // 不排除的话它们会以「同名」身份制造假冲突，把真源问题埋掉。
+      if (excludePrefixes.some(p => real === p || real.startsWith(p + sep))) {
+        excluded.push(file);
+        continue;
+      }
       if (seen.has(name)) {
         const entry = shadowed.get(name);
         if (entry) {
@@ -132,25 +157,50 @@ export async function scanSkills(options: ScanOptions): Promise<ScanResult> {
     }
   }
   skills.sort((a, b) => a.name.localeCompare(b.name));
-  const duplicates: DuplicateSkill[] = [...shadowed.entries()]
+  const allDuplicates: DuplicateSkill[] = [...shadowed.entries()]
     .map(([name, v]) => {
       const keptRecord = skills.find((s) => s.name === name);
       return { name, kept: keptRecord?.path ?? v.kept, shadowed: v.paths };
     })
     .sort((a, b) => a.name.localeCompare(b.name));
-  return { count: skills.length, skills, broken, duplicates, scannedRoots: options.roots };
+
+  // 上游有意保留的同名对：声明里把被遮蔽路径全部列全才放行，避免变成万能豁免。
+  const allowed = new Map((options.allowedDuplicates ?? []).map(a => [a.name, a]));
+  const duplicates: DuplicateSkill[] = [];
+  const allowedDuplicates: Array<DuplicateSkill & { reason: string }> = [];
+  for (const d of allDuplicates) {
+    const rule = allowed.get(d.name);
+    if (!rule) {
+      duplicates.push(d);
+      continue;
+    }
+    const declared = (rule.paths ?? []).map(p => resolve(p.replace(/^~/, process.env.HOME ?? '')));
+    const uncovered = d.shadowed.filter(p => !declared.includes(p));
+    if (declared.length === 0 || uncovered.length > 0) {
+      // 声明没覆盖到的副本仍然是真问题，不能靠写个 name 就全放过。
+      duplicates.push({ ...d, shadowed: uncovered.length ? uncovered : d.shadowed });
+      continue;
+    }
+    allowedDuplicates.push({ ...d, reason: rule.reason });
+  }
+  return { count: skills.length, skills, broken, duplicates, excluded, allowedDuplicates, scannedRoots: options.roots };
 }
 
-export function doctor(result: ScanResult): { ok: boolean; problems: string[] } {
+export function doctor(result: ScanResult): { ok: boolean; problems: string[]; notes: string[] } {
   const problems: string[] = [];
+  const notes: string[] = [];
   for (const b of result.broken) problems.push(`broken: ${basename(b.path)} -> ${b.reason}`);
   for (const d of result.duplicates) {
     problems.push(`duplicate-name: ${d.name} -> 采用 ${d.kept}，被遮蔽 ${d.shadowed.join(', ')}`);
+  }
+  // 有意同名：仍打印出来让人看得见，但不算问题（否则要么永久红、要么逼人删掉上游契约）。
+  for (const d of result.allowedDuplicates ?? []) {
+    notes.push(`duplicate-name-allowed: ${d.name} -> 采用 ${d.kept}（有意保留：${d.reason}）`);
   }
   for (const s of result.skills) {
     if (s.scope === 'company') continue;
     if (s.origin.startsWith('opensource:')) continue;
     if (!s.version) problems.push(`no-version: ${s.name}`);
   }
-  return { ok: problems.length === 0, problems };
+  return { ok: problems.length === 0, problems, notes };
 }

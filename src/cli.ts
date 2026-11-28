@@ -8,6 +8,7 @@ import { buildRelations, currentGithubAccount, publicRepos } from './relations.j
 import { UsageStore, LIFECYCLE_STATUSES, VISIBILITY_STATUSES, type LifecycleStatus, type VisibilityStatus } from './usage.js';
 import { buildProfiles } from './profile.js';
 import { createHandler } from './web.js';
+import { DEFAULT_ALLOWED_DUPLICATES, DEFAULT_EXCLUDES, DEFAULT_ROOTS } from './roots.js';
 import type { ScanResult } from './types.js';
 
 const HELP = `skillhub — local Skill hub CLI (independent of CS)
@@ -75,23 +76,12 @@ function parseArgs(argv: string[]): Opts {
   return opts;
 }
 
-const DEFAULT_ROOTS = [
-  '~/dev/agent-infra',               // 本仓薄插件优先，盖掉 CS 仓里的旧厚入口
-  '~/dev/cs/CortexOS/skills',
-  '~/dev/agent-skills/writing-standard-skills/skills',
-  '~/dev/agent-skills',
-  '~/dev/visual/ui-craft/skills',
-  '~/.agents/skills',
-  '~/.claude/skills',
-  '~/.codex/skills',
-  '~/.gemini/config/skills',
-  '~/.dsh/skills',
-  '~/.cursor/skills',
-  '~/.config/opencode/skills',
-];
-
 async function loadResult(roots: string[]): Promise<ScanResult> {
-  return scanSkills({ roots: roots.length ? roots : DEFAULT_ROOTS });
+  return scanSkills({
+    roots: roots.length ? roots : DEFAULT_ROOTS,
+    excludePrefixes: DEFAULT_EXCLUDES,
+    allowedDuplicates: DEFAULT_ALLOWED_DUPLICATES,
+  });
 }
 
 function renderText(result: ScanResult): string {
@@ -105,6 +95,7 @@ function renderText(result: ScanResult): string {
     `skills: ${result.count}`,
     `broken: ${result.broken.length}`,
     `duplicates: ${result.duplicates.length}`,
+    `excluded: ${result.excluded.length}`,
     `categories: ${[...byCategory.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
     `origins: ${[...origins.entries()].map(([k, v]) => `${k}=${v}`).join(', ')}`,
   ].join('\n');
@@ -133,7 +124,10 @@ async function main(): Promise<void> {
   if (opts.command === 'doctor') {
     const result = await loadResult(opts.roots);
     const report = doctor(result);
-    process.stdout.write(`${report.ok ? 'ok' : 'problems'}\n${report.problems.map(p => `- ${p}`).join('\n')}\n`);
+    const lines = [report.ok ? 'ok' : 'problems', ...report.problems.map(p => `- ${p}`)];
+    // 有意同名不是问题，但必须看得见：单独一段，不混进 problems。
+    if (report.notes.length) lines.push('', ...report.notes.map(n => `~ ${n}`));
+    process.stdout.write(`${lines.join('\n')}\n`);
     process.exitCode = report.ok ? 0 : 1;
     return;
   }

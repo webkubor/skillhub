@@ -13,7 +13,8 @@ import { getSkillGitDiff, getSkillGitHistory, isValidCommitRef } from './git-his
 import { buildProfiles } from './profile.js';
 import { buildRelations, currentGithubAccount, publicRepos } from './relations.js';
 import { doctor, scanSkills } from './scan.js';
-import type { ScanResult } from './types.js';
+import { DEFAULT_ALLOWED_DUPLICATES, DEFAULT_EXCLUDES } from './roots.js';
+import type { AllowedDuplicate, ScanResult } from './types.js';
 import { UsageStore } from './usage.js';
 
 const VisibilitySchema = z.object({
@@ -40,8 +41,13 @@ const ControlSchema = z.object({
 
 export type ControlEvent = z.infer<typeof ControlSchema>;
 
-export async function createApp(roots: string[], usage?: UsageStore) {
-  let cached: ScanResult = await scanSkills({ roots });
+export async function createApp(
+  roots: string[],
+  usage?: UsageStore,
+  excludePrefixes: string[] = DEFAULT_EXCLUDES,
+  allowedDuplicates: AllowedDuplicate[] = DEFAULT_ALLOWED_DUPLICATES,
+) {
+  let cached: ScanResult = await scanSkills({ roots, excludePrefixes, allowedDuplicates });
   const store = usage ?? new UsageStore();
   const account = await currentGithubAccount();
   const pub = account ? await publicRepos(account) : null;
@@ -154,7 +160,7 @@ export async function createApp(roots: string[], usage?: UsageStore) {
   }
 
   const handleRefresh = async () => {
-    cached = await scanSkills({ roots });
+    cached = await scanSkills({ roots, excludePrefixes, allowedDuplicates });
     relations = await buildRelations(cached.skills, account ?? '', pub ?? undefined);
     checkCliStatus(true);
     refreshedAt = new Date().toISOString();
@@ -280,7 +286,9 @@ export async function createApp(roots: string[], usage?: UsageStore) {
 export async function createHandler(
   roots: string[],
   usage?: UsageStore,
+  excludePrefixes: string[] = DEFAULT_EXCLUDES,
+  allowedDuplicates: AllowedDuplicate[] = DEFAULT_ALLOWED_DUPLICATES,
 ): Promise<(req: IncomingMessage, res: ServerResponse) => void> {
-  const app = await createApp(roots, usage);
+  const app = await createApp(roots, usage, excludePrefixes, allowedDuplicates);
   return getRequestListener(app.fetch);
 }
