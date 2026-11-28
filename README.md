@@ -1,28 +1,35 @@
-![SkillHub Logo](./assets/logo.svg)
+# <img src="assets/logo.svg" width="40" height="40" align="center" alt=""> SkillHub
 
-# SkillHub `v1.0.0`
+在 Claude Code、Codex 等工具里装了很多 Agent Skills？SkillHub 把它们列在一张本地清单中，让你找到每项技能的来源、版本，以及最近有没有登记过使用结果。
 
-本机优先的 AI Agent Skill 控制面：全运行时扫描、健康诊断、上架前安全审计、Git 版本 Diff、调用遥测、极简侧栏控制台与 CLI 实时遥控（SSE）。**Skills 能力全部下放这里维护，CS 系统只做薄消费端（能读能用），不承担管理逻辑。**
+[从源码安装](#快速开始) · [查看技能档案](#技能档案) · [CLI 命令](#命令) · [![CI](https://github.com/webkubor/skillhub/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/webkubor/skillhub/actions/workflows/ci.yml)
 
-## 定位
-- 真源：Skill 正文在各源仓的 `SKILL.md`；skillhub 只做索引与遥测，不复制正文。
-- 遥测：本地 SQLite（`node:sqlite`，零外部依赖），不写任何外部系统的第二份真源。
-- CS：`integrations/cs/` 里只有一个薄 Skill 入口；规则正文与版本以本仓为准。
+![SkillHub 本地控制台，使用示例数据展示技能清单](assets/screenshots/console.png)
 
 ## 快速开始
+
+准备好 Git 和 Node.js 24，或使用 CI 所测的 Node.js 22 最新补丁版。在 macOS 或 Linux 终端运行：
+
 ```bash
-npm install && npm --prefix web install
+git clone https://github.com/webkubor/skillhub.git
+cd skillhub
+npm ci && npm --prefix web ci
 npm run build:all
-./install.sh                          # 装到 ~/.local/bin/skillhub，并幂等注册 CS 薄入口
-skillhub scan --json
-skillhub doctor
-skillhub audit
-skillhub use demo --outcome success --agent claude
-skillhub profile demo --json
-skillhub visibility demo closed --note "commercial build"
-skillhub stats --json
-skillhub serve --port 4319            # http://127.0.0.1:4319
+./install.sh
+skillhub serve --port 4319
 ```
+
+在浏览器打开 [本地控制台](http://127.0.0.1:4319)。若终端找不到 `skillhub`，可在仓库目录运行 `node dist/cli.js serve --port 4319`。
+
+## 技能档案
+
+![SkillHub 控制台的技能详情，使用示例数据](assets/screenshots/skill-detail.png)
+
+- **查来源。** 查看技能来自哪个目录，核对同名项和版本，再决定维护哪一份。
+- **查使用。** 用 `skillhub use` 登记任务结果，之后可按技能、Agent 或时间查看。零条记录表示还没有登记结果。
+- **做清理。** 先用 `skillhub doctor` 找格式问题，用 `skillhub audit` 检查发布风险，再决定归档哪些技能。
+
+技能正文保留在原仓库，使用记录保存在本机 SQLite。CS 用户可通过 [skillhub-ops](integrations/cs/skillhub-ops/SKILL.md) 访问同一套工具。
 
 ## 命令
 | 命令 | 用途 |
@@ -52,6 +59,3 @@ skillhub serve --port 4319            # http://127.0.0.1:4319
 - [SkillPay 合同审阅](docs/skillpay-contract-notes.md)：售卖自有 SKILL 的边界、开源/闭源切换的法律含义与上架清单。
 - [线上分发平台清单](docs/distribution-platforms.md)：腾讯云 SkillHub / 支付宝 SkillPay，仅登记未接入。
 - [SKILL.md](SKILL.md)：给 Agent 的用法说明。
-
-## 状态
-`1.0.0`：完成本机 SkillHub 完整闭环——Hono + Zod + SSE 后端、极简左侧栏 Next.js 明暗双色控制台、透明底 SVG 品牌标识、Agent 专属矢量图标、`skillhub audit` 上架前安全门禁（含 `publish: never`）、本地 Git 版本历史与 Diff、`skillhub ui` 终端实时遥控网页；`npm test` 全部通过。网页来源切换只改本地 SQLite，不改 GitHub 可见性、LICENSE 或外部商品配置。CS 不参与管理，也不作为迁移源或路线图依据。
